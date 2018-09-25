@@ -1,4 +1,16 @@
+#       ------------------------------------------------
+#                        Dispatch Model 
+#       ------------------------------------------------
 
+#- Author: Jairo Terra, Guilherme Machado, Mateus Cavaliere ( PUC - 2018 )
+#- Description: This is the main module of the dispatch model created to emulate a thermal system optimal dispatch
+
+#-----------------------------------------
+#----           Loading libs          ----
+#-----------------------------------------
+
+using JuMP
+using Clp
 
 #-------------------------------------------
 #----           Defining paths          ----
@@ -22,6 +34,4 @@ include( FUNCTIONS )
 #----        Running main module        ----
 #-------------------------------------------
 
-PATH_CASE = get_paths( PATH_SRC );
-
-CASE , GENCOS , DEMANDS , CIRCUITS , BUSES = read_data_base( PATH_CASE )
+dispatch( PATH_SRC )

@@ -1,0 +1,24 @@
+
+  #-----------------------------------------#
+  #              DISPATCH MODEL             #
+  #-----------------------------------------#
+
+  Execution date: 25-Sep-2018 01:30
+  Directory:      D:\Mateus\Mestrado\2018-02\Eco_Energia\Modelo_Despacho\dispatch_model\exemples\default\ 
+
+  Loading inputs
+     SDDP configuration
+     Generators configuration
+     Loads configuration
+     Circuits configuration
+     Buses configuration
+
+  Loading data took 0.013 seconds
+
+  Solving dispatch problem
+
+     No solution found!
+
+     This problem is Infeasible!
+
+  Optmization process took 0.003 seconds

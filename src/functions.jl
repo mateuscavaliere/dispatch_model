@@ -1,8 +1,9 @@
-
-
+#       ------------------------------------------------
+#                  Defining general functions 
+#       ------------------------------------------------
 
 #--- w_Log: Function to write the log ---
-function w_Log( msg::String, path::String , flagConsole::Int = 1, flagLog::Int = 1 , logName = "cmgdem_pld.log" , wType = "a" )
+function w_Log( msg::String, path::String , flagConsole::Int = 1, flagLog::Int = 1 , logName = "dispatch.log" , wType = "a" )
     
     if flagLog == 1
         logFile = open( joinpath( path , logName ) , wType )
@@ -53,8 +54,65 @@ function get_paths( path::String = pwd() )
     return path_case
 end
 
+#--------------------------------------------------------
+#----           Functions to read data base          ----
+#--------------------------------------------------------
+
+#--- read_options: Function to read model options ---
+function read_options( path::String , file_name::String = "dispatch.dat" )
+    
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local iofile::IOStream                  # Local variable to buffer connection to gencos.dat file
+    local iodata::Array{String,1}           # Local variable to buffer information from read gencos.dat file
+    local i::Int                            # Local variable to loop over informations
+    local flag_res::Int                     # Local variable to buffer reserve option
+    local flag_ang::Int                     # Local variable to buffer angular diff option
+    local flag_cont::Int                 # Local variable to buffer contingency option
+
+    #---------------------------------
+    #--- Reading file (gencos.dat) ---
+    #---------------------------------
+
+    iofile = open( joinpath( path , file_name ) , "r" )
+    iodata = readlines( iofile );
+    Base.close( iofile )
+
+    #-----------------------
+    #--- Assigning data  ---
+    #-----------------------
+    
+    flag_ang  = string_converter( iodata[1][27:30]  , Int , "Invalid entry for angular diff option")
+    flag_res  = string_converter( iodata[2][27:30]  , Int , "Invalid entry for reserve option")
+    flag_cont = string_converter( iodata[3][27:30]  , Int , "Invalid entry for contingency option")
+
+    #- Checking user input consistency
+
+    #- Reserve option
+    if (flag_res != 0) & (flag_res != 1)
+
+        exit()
+    end
+
+    #- Angular diff option
+    if (flag_ang != 0) & (flag_ang != 1)
+
+        exit()
+    end
+
+    #- Contingency option
+    if (flag_cont != 0) & (flag_cont != 1) & (flag_cont != 2) & (flag_cont != 3)
+
+        exit()
+    end
+
+    return( flag_res , flag_ang , flag_cont )
+end 
+
 #--- read_gencos: Function to read generators configuration ---
-function read_gencos( path::String , file_name::String = "gencos.dat")
+function read_gencos( path::String , file_name::String = "gencos.dat" )
 
     #---------------------------
     #---  Defining variables ---
@@ -281,11 +339,509 @@ function read_data_base( path::String )
 
     CASE = Case();
 
-    CASE.nGen , GENCOS   = read_gencos(   path );
-    CASE.nDem , DEMANDS  = read_demands(  path );
-    CASE.nCir , CIRCUITS = read_circuits( path );
-    CASE.nBus , BUSES    = read_buses(    path );
+    #---- Loading case configuration ----
+    w_Log("     SDDP configuration", path );
+    CASE.Flag_Res , CASE.Flag_Ang , CASE.Flag_Cont = read_options(  path );
+
+    #---- Loading generators configuration ----
+    w_Log("     Generators configuration", path );
+    CASE.nGen , GENCOS                             = read_gencos(   path );
+
+    #---- Loading loads configuration ----
+    w_Log("     Loads configuration", path );
+    CASE.nDem , DEMANDS                            = read_demands(  path );
+
+    #---- Loading circuits configuration ----
+    w_Log("     Circuits configuration", path );
+    CASE.nCir , CIRCUITS                           = read_circuits( path );
+
+    #---- Loading buses configuration ----
+    w_Log("     Buses configuration", path );
+    CASE.nBus , BUSES                              = read_buses(    path );
 
     return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
+
+end
+
+#-----------------------------------------------------
+#----           Functions to build model          ----
+#-----------------------------------------------------
+
+#--- create_model: This function creates the JuMP model and its variables ---
+function create_model( case::Case )
+    
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local myModel::JuMP.Model                  # Local variable to create optmization model
+
+    #-----------------------
+    #---  Creating model ---
+    #-----------------------
+
+    myModel = Model( solver = ClpSolver( ) );
+
+    @variable(myModel, f[1:case.nCir] );
+    @variable(myModel, g[1:case.nGen] >= 0);
+
+    if case.Flag_Ang == 1
+        @variable(myModel, θ[1:case.nBus] >= 0);
+        @constraint( myModel , θ[1] == 0 )
+    end
+
+    if case.Flag_Res == 1
+        @variable(myModel, rup[1:case.nGen] >= 0);
+        @variable(myModel, rdown[1:case.nGen] >= 0);
+    end
+
+    return( myModel)
+
+end
+
+#--- add_grid_constraint!: This function creates the maximum and minimum flow constraint ---
+function add_grid_constraint!( model::JuMP.Model , case::Case , circuits::Circuits )
+
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local l::Int                                        # Local variable to loop over lines
+    
+    local f::Array{JuMP.Variable,1}                     # Local variable to represent flow decision variable
+    local θ::Array{JuMP.Variable,1}                     # Local variable to represent angle decision variable
+    
+    local max_circ_cap::Array{JuMP.ConstraintRef,1}     # Local variable to represent maximum circuit capacity constraint reference
+    local min_circ_cap::Array{JuMP.ConstraintRef,1}     # Local variable to represent minimum circuit capacity constraint reference
+    
+    #- Assigning values
+
+    f = model[:f]
+    
+    #-----------------------------------------
+    #---  Adding constraints in the model  ---
+    #-----------------------------------------
+
+    @constraintref max_circ_cap[1:case.nCir]
+    @constraintref min_circ_cap[1:case.nCir]
+
+    for l in 1:case.nCir
+        
+        max_circ_cap[l] = @constraint( model , f[l]  <= circuits.Cap[l])
+        min_circ_cap[l] = @constraint( model , -circuits.Cap[l] <= f[l]  )
+        
+    end
+
+    return( max_circ_cap , min_circ_cap )
+end
+
+#--- add_angle_constraint!: This function creates the angle diff constraint ---
+function add_angle_constraint!( model::JuMP.Model , case::Case , circuits::Circuits )
+
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local l::Int                                    # Local variable to loop over lines
+
+    local f::Array{JuMP.Variable,1}                 # Local variable to represent flow decision variable of model
+    local θ::Array{JuMP.Variable,1}                 # Local variable to represent angle decision variable of model
+
+    local angle_lag::Array{JuMP.ConstraintRef,1}    # Local variable to represent angle lag constraint reference
+    
+    #- Assigning values
+
+    f = model[:f]
+    θ = model[:θ]
+
+    #-----------------------------------------
+    #---  Adding constraints in the model  ---
+    #-----------------------------------------
+
+    @constraintref angle_lag[1:case.nCir]
+
+    for l in 1:case.nCir
+        
+        angle_lag[l] = @constraint( model , f[l] == ( 1 / circuits.Reat[l] ) * ( θ[circuits.BusFrom[l]] - θ[circuits.BusTo[l]] ) )
+
+    end
+
+    return( angle_lag )
+
+end
+
+#--- add_gen_constraint!: This function creates the maximum and minimum generation constraint ---
+function add_gen_constraint!( model::JuMP.Model , case::Case , generators::Gencos )
+
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local u::Int                                    # Local variable to loop over generators
+    
+    local g::Array{JuMP.Variable,1}                 # Local variable to represent generation decision variable
+    local rup::Array{JuMP.Variable,1}               # Local variable to represent reserve up decision variable
+    local rdown::Array{JuMP.Variable,1}             # Local variable to represent reserve down decision variable
+    
+    local max_gen::Array{JuMP.ConstraintRef,1}      # Local variable to represent maximum generation constraint reference
+    local min_gen::Array{JuMP.ConstraintRef,1}      # Local variable to represent minimum generation constraint reference
+
+    #- Assigning values
+
+    g = model[:g]
+
+    if case.Flag_Res == 1
+        rup   = model[:rup]
+        rdown = model[:rdown]
+    end
+    
+    #-----------------------------------------
+    #---  Adding constraints in the model  ---
+    #-----------------------------------------
+
+    @constraintref max_gen[1:case.nGen]
+    @constraintref min_gen[1:case.nGen]
+    
+    if case.Flag_Res == 1
+        for u in 1:case.nGen
+            max_gen[u]   = @constraint(model,  g[u] + rup[u] <= generators.Pot[u] )
+            min_gen[u]   = @constraint(model,  0 <= g[u] - rdown[u] )
+        end
+    else
+        for u in 1:case.nGen
+            max_gen[u]   = @constraint(model,  g[u] <= generators.Pot[u] )
+            min_gen[u]   = @constraint(model,  0 <= g[u] )
+        end
+    end
+
+    return( max_gen , min_gen )
+end
+
+#--- add_reserve_constraint!: This function creates the maximum and minimum reserve constraint ---
+function add_reserve_constraint!( model::JuMP.Model , case::Case , generators::Gencos )
+
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local u::Int                                    # Local variable to loop over generators
+    
+    local rup::Array{JuMP.Variable,1}               # Local variable to represent reserve up decision variable
+    local rdown::Array{JuMP.Variable,1}             # Local variable to represent reserve down decision variable
+    
+    local max_rup::Array{JuMP.ConstraintRef,1}      # Local variable to represent maximum reserve up constraint reference
+    local max_rdown::Array{JuMP.ConstraintRef,1}    # Local variable to represent maximum reserve down constraint reference
+
+    #- Assigning values
+
+    rup   = model[:rup]
+    rdown = model[:rdown]
+    
+    #-----------------------------------------
+    #---  Adding constraints in the model  ---
+    #-----------------------------------------
+
+    @constraintref max_rup[1:case.nGen]
+    @constraintref max_rdown[1:case.nGen]
+
+    for u in 1:case.nGen
+        max_rup[u]   = @constraint(model,  rup[u] <= generators.RUp[u] )
+        max_rdown[u] = @constraint(model,  rdown[u] <= generators.RDown[u] )
+    end
+
+    return( max_rup , max_rdown )
+end
+
+#--- add_load_balance_constranint!: This function creates the load balance constraint ---
+function add_load_balance_constranint!( model::JuMP.Model , case::Case , generators::Gencos , circuits::Circuits , demands::Demands )
+
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local u::Int                                                    # Local variable to loop over generators
+    local l::Int                                                    # Local variable to loop over lines
+    local b::Int                                                    # Local variable to loop over buses
+    local d::Int                                                    # Local variable to loop over demands
+
+    local g::Array{JuMP.Variable,1}                                 # Local variable to represent generation decision variable
+    local f::Array{JuMP.Variable,1}                                 # Local variable to represent flow decision variable
+
+    local load_balance::Array{JuMP.ConstraintRef,1}                 # Local variable to represent load balance constraint reference
+
+    local aux_gen::JuMP.GenericAffExpr{Float64,JuMP.Variable}       # Auxiliar variable to create generation vector in each bus
+    local aux_flow::JuMP.GenericAffExpr{Float64,JuMP.Variable}      # Auxiliar variable to create flow vector in each bus
+    local aux_dem::Float64                                          # Auxiliar variable to create demand in each bus
+
+    #- Assigning values
+
+    g = model[:g]
+    f = model[:f]
+
+    #-----------------------------------------
+    #---  Adding constraints in the model  ---
+    #-----------------------------------------
+
+    @constraintref load_balance[1:case.nBus]
+
+    for b in 1:case.nBus
+        
+        aux_gen  = 0
+        aux_flow = 0
+        aux_dem  = 0
+
+        #- Generation associate to the bus
+        for u in 1:case.nGen
+            if generators.Bus[u] == b
+                aux_gen = aux_gen + g[u]
+            end
+        end
+
+        #- Flow direction associate to the bus
+        for l in 1:case.nCir
+            if circuits.BusTo[l] == b
+                aux_flow = aux_flow + f[l]
+            elseif circuits.BusFrom[l] == b
+                aux_flow = aux_flow - f[l]
+            end
+        end
+
+        #- Demand associate to the bus
+        for d in 1:case.nDem
+            if demands.Bus[d] == b
+                aux_dem = aux_dem + demands.Dem[d] 
+            end
+        end
+
+        load_balance[b] = @constraint(model,  aux_gen + aux_flow ==  aux_dem )
+        
+    end
+    
+    return( load_balance )
+end
+
+#--- add_obj_fun!: This function creates and append the objective function to the model ---
+function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
+
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local u::Int                                                    # Local variable to loop over generators
+    
+    local g::Array{JuMP.Variable,1}                                 # Local variable to represent generation decision variable
+    local rup::Array{JuMP.Variable,1}                               # Local variable to represent reserve up decision variable
+    local rdown::Array{JuMP.Variable,1}                             # Local variable to represent reserve down decision variable
+
+    local obj_fun::JuMP.GenericAffExpr{Float64,JuMP.Variable}       # Local variable to represent objective function
+    local syst_cost::JuMP.GenericAffExpr{Float64,JuMP.Variable}     # Local variable to represent system total cost
+    
+    #- Assigning values
+
+    g = model[:g]
+
+    if case.Flag_Res == 1
+        rup   = model[:rup]
+        rdown = model[:rdown]
+    end
+
+    #-----------------------------------
+    #---  Adding objective function  ---
+    #-----------------------------------
+
+    obj_fun = 0
+
+    if case.Flag_Res == 1
+        for u in 1:case.nGen
+            obj_fun = obj_fun + g[u] * generators.CVU[u] + rup[u] * generators.RUpCost[u] + rdown[u] * generators.RDownCost[u]
+        end
+    else
+        for u in 1:case.nGen
+            obj_fun = obj_fun + g[u] * generators.CVU[u]
+        end
+    end
+
+    @expression( model , syst_cost , obj_fun   );
+    @objective(  model , Min       , syst_cost);
+
+    return( syst_cost )
+
+end
+
+#--- solve_dispatch: This function calls the solver and write output into .log file ---
+function solve_dispatch( path::String , model::JuMP.Model , constr::Constr , case::Case , circuits::Circuits , generators::Gencos , buses::Buses )
+
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local b::Int                            # Local variable to loop over buses
+    local u::Int                            # Local variable to loop over generators
+    local l::Int                            # Local variable to loop over lines
+
+    local status::Symbol                    # Local variable to represent optmization status
+
+    local prices::Array{Float64}            # Local variable to buffer dual variable (prices) after optmization
+    local generation::Array{Float64}        # Local variable to buffer optimal generation
+    local cir_flow::Array{Float64}          # Local variable to buffer optimal circuit flow
+    local res_up_gen::Array{Float64}        # Local variable to buffer optimal up reserve
+    local res_down_gen::Array{Float64}      # Local variable to buffer optimal down reserve
+    local bus_ang::Array{Float64}           # Local variable to buffer optimal angle diff
+
+
+    #--- Creating optmization problem
+    JuMP.build( model );
+
+    #--- Solving optmization problem
+    status = JuMP.solve( model );
+
+    #--- Reporting results
+    
+    if status  == :Optimal
+
+        prices = getdual(constr.load_balance)
+        generation = getvalue( model[:g] )
+        cir_flow   = getvalue( model[:f] )
+
+        if case.Flag_Res == 1
+            res_up_gen   = getvalue( model[:rup] )
+            res_down_gen = getvalue( model[:rdown] )
+        end
+        
+        if case.Flag_Ang == 1
+            bus_ang = getvalue( model[:θ] )
+        end
+
+        #--- Writing to log the optimal solution
+
+        w_Log("\n     Optimal solution found!\n" , path )
+
+        for b in 1:case.nBus
+            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(prices[b]) R\$/MWh" , path )
+        end
+
+        w_Log( " " , path )
+
+        for u in 1:case.nGen
+            w_Log("     Optimal generation of $(generators.Name[u]): $(generation[u]) MWh" , path )
+        end
+
+        w_Log( " " , path )
+
+        for l in 1:case.nCir
+            w_Log("     Optimal flow in line $(circuits.Name[l]): $(cir_flow[l]) MW" , path )
+        end
+
+        if case.Flag_Res == 1
+
+            w_Log( " " , path )
+
+            for u in 1:case.nGen
+                w_Log("     Optimal Reserve Up of $(generators.Name[u]): $(res_up_gen[u]) MWh" , path )
+            end
+
+            w_Log( " " , path )
+
+            for u in 1:case.nGen
+                w_Log("     Optimal Reserve Down of $(generators.Name[u]): $(res_down_gen[u]) MWh" , path )
+            end
+
+        end
+
+        if case.Flag_Ang == 1
+            
+            w_Log( " " , path )
+
+            for b in 1:case.nBus
+                w_Log("     Optimal bus angle $(buses.Name[b]): $(bus_ang[l]) grad" , path )
+            end
+        end
+
+    elseif status == :Infeasible
+        w_Log("\n     No solution found!\n\n     This problem is Infeasible!" , path )
+    end
+
+end
+
+#--- build_dispatch: This function call all other functions associate with the dispatch optmization problem ---
+function build_dispatch( path::String , case:: Case, circuits::Circuits , generators::Gencos , demands::Demands , buses::Buses )
+    
+    #--- Creating constraint ref
+    CONSTR = Constr()
+
+    #--- Creating optmization problem
+    MODEL = create_model( case )
+
+    #- Add grid constraints
+    CONSTR.max_circ_cap , CONSTR.min_circ_cap = add_grid_constraint!(  MODEL , case , circuits )
+
+    #- Add angle lag constraints
+
+    if case.Flag_Ang == 1
+        CONSTR.angle_lag = add_angle_constraint!( MODEL , case , circuits )
+    end
+
+    #- Add maximum and minimum generation constraints
+    CONSTR.max_gen , CONSTR.min_gen  = add_gen_constraint!( MODEL , case , generators )
+
+    #- Add maximum and minimum reserve constraints
+
+    if case.Flag_Res == 1
+        CONSTR.max_rup , CONSTR.max_rdown = add_reserve_constraint!( MODEL , case , generators )
+    end
+
+    #- Add load balance constraints
+    CONSTR.load_balance = add_load_balance_constranint!( MODEL , case , generators , circuits , demands )
+
+    #- Add objetive function
+    syst_cost = add_obj_fun!( MODEL , case , generators )
+
+    #- Writing LP
+    writeLP(MODEL, joinpath( path , "dispatch.lp") , genericnames = false)
+
+    #- Build and solve optmization problem
+    solve_dispatch( path , MODEL , CONSTR , case , circuits , generators , buses )
+end
+
+#------------------------------------------
+#----           Main function          ----
+#------------------------------------------
+
+function dispatch( path::String )
+    
+    PATH_CASE = get_paths( path );
+
+    #--- Remove preveous log file ---
+    if isfile( joinpath( PATH_CASE , "dispatch.log" ) )
+        rm( joinpath( PATH_CASE , "dispatch.log" ) )
+    else
+        w_Log( "" , PATH_CASE , 0 , 1 , "dispatch.log" , "w" )
+    end
+
+    w_Log( "\n  #-----------------------------------------#"            , PATH_CASE );
+    w_Log( "  #              DISPATCH MODEL             #"              , PATH_CASE );
+    w_Log( "  #-----------------------------------------#\n"            , PATH_CASE );
+    w_Log( "  Execution date: $(Dates.format(now(),"dd-u-yyyy HH:MM"))" , PATH_CASE );
+    w_Log( "  Directory:      $PATH_CASE \n"                            , PATH_CASE );
+
+    #--------------------------------
+    #----     Loading inputs     ----
+    #--------------------------------
+
+    w_Log( "  Loading inputs" , PATH_CASE );
+
+    time_counter = @elapsed ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES ) = read_data_base( PATH_CASE );
+
+    w_Log( "\n  Loading data took $(round(time_counter,3)) seconds\n" , PATH_CASE );
+
+    #--------------------------------------------------
+    #----     Solving optimal dispatch problem     ----
+    #--------------------------------------------------
+
+    w_Log( "  Solving dispatch problem" , PATH_CASE );
+
+    time_counter = @elapsed build_dispatch( PATH_CASE , CASE , CIRCUITS , GENCOS , DEMANDS , BUSES );
+
+    w_Log( "\n  Optmization process took $(round(time_counter,3)) seconds" , PATH_CASE );
 
 end

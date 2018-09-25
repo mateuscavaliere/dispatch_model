@@ -9,6 +9,9 @@ mutable struct Case
     nBus::Int
     nDem::Int
     nCir::Int
+    Flag_Ang::Int
+    Flag_Res::Int
+    Flag_Cont::Int
     Case() = new();
 end
 
@@ -52,4 +55,17 @@ mutable struct Buses
     Num::Array{Int};
     Name::Array{String};
     Buses() = new();
+end
+
+#--- Circuits: Struct to buffer the optmization constranits
+mutable struct Constr
+    max_circ_cap::Array{JuMP.ConstraintRef,1}; 
+    min_circ_cap::Array{JuMP.ConstraintRef,1};
+    angle_lag::Array{JuMP.ConstraintRef,1};
+    max_gen::Array{JuMP.ConstraintRef,1};
+    min_gen::Array{JuMP.ConstraintRef,1};
+    max_rup::Array{JuMP.ConstraintRef,1};
+    max_rdown::Array{JuMP.ConstraintRef,1};
+    load_balance::Array{JuMP.ConstraintRef,1};
+    Constr() = new();
 end
