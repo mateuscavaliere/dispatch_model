@@ -101,6 +101,7 @@ function read_options( path::String , file_name::String = "dispatch.dat" )
     flag_ang  = string_converter( iodata[1][27:30]  , Int , "Invalid entry for angular diff option")
     flag_res  = string_converter( iodata[2][27:30]  , Int , "Invalid entry for reserve option")
     flag_cont = string_converter( iodata[3][27:30]  , Int , "Invalid entry for contingency option")
+    cont_crit = string_converter( iodata[4][27:30]  , Int , "Invalid entry for contingency criteria option")
 
     #- Checking user input consistency
 
@@ -122,7 +123,7 @@ function read_options( path::String , file_name::String = "dispatch.dat" )
         exit()
     end
 
-    return( flag_res , flag_ang , flag_cont )
+    return( flag_res , flag_ang , flag_cont, cont_crit )
 end 
 
 #--- read_gencos: Function to read generators configuration ---
@@ -394,7 +395,7 @@ function read_data_base( path::String )
 
     #---- Loading case configuration ----
     w_Log("     SDDP configuration", path );
-    CASE.Flag_Res , CASE.Flag_Ang , CASE.Flag_Cont = read_options(  path );
+    CASE.Flag_Res , CASE.Flag_Ang , CASE.Flag_Cont , CASE.nCont = read_options(  path );
 
     #---- Loading generators configuration ----
     w_Log("     Generators configuration", path );
@@ -412,11 +413,8 @@ function read_data_base( path::String )
     w_Log("     Buses configuration", path );
     CASE.nBus , BUSES                              = read_buses(    path );
     
-    #---- set number of contingencies
-    CASE.nCont = CASE.Flag_Res
-
     #---- set number of contingency scenarios
-    CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont)
+    CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont, CASE.Flag_Cont)
 
     return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
 end
@@ -458,7 +456,7 @@ function read_data_base_class_format( path::String )
 end
 
 #--- calculates number of contingency scenarios
-function get_contingency_scenarios(nCir::Int64, nGen::Int64, nCont::Int64)
+function get_contingency_scenarios(nCir::Int64, nGen::Int64, nCont::Int64, criteria::Int)
     local nCen::Int64 = 0 # number of contingency scenarios
     local nTotal::Int64 = nCir + nGen 
    
@@ -481,6 +479,13 @@ function get_contingency_scenarios(nCir::Int64, nGen::Int64, nCont::Int64)
            ag[linha,:] = i[1:nGen]
            al[linha,:] = i[nGen+1:nTotal]
         end
+    end
+
+    #--- reset contingencies to match criteria G+T, T or G
+    if criteria == 2 # G
+        al = ones(size(al))
+    elseif criteria == 3 # T
+        ag = ones(size(ag))
     end
 
     return nCen, ag', al'
@@ -509,11 +514,13 @@ function create_model( case::Case )
 
     @variable(myModel, f[1:case.nCir, 1:(case.nContScen+1)] );
     @variable(myModel, g[1:case.nGen, 1:(case.nContScen+1)] >= 0);
-    @variable(myModel, δ[1:case.nBus, 1:(case.nContScen+1)] >= 0);
+    @variable(myModel, delta[1:case.nBus, 1:(case.nContScen+1)] >= 0);
 
     if case.Flag_Ang == 1
-        @variable(myModel, θ[1:case.nBus, 1:(case.nContScen+1)] >= 0);
-        # @constraint( myModel , θ[1] == 0 )
+        @variable(myModel, theta[1:case.nBus, 1:(case.nContScen+1)]);
+        # @constraint(myModel, upper_theta[b=1:case.nBus, c=1:(case.nContScen+1)], theta[b,c] >= -1);
+        # @constraint(myModel, lower_theta[b=1:case.nBus, c=1:(case.nContScen+1)], theta[b,c] <= 1);
+        @constraint( myModel , theta[1] == 0 )
     end
 
     if case.Flag_Res == 1
@@ -558,7 +565,7 @@ function add_angle_constraint!( model::JuMP.Model , case::Case , circuits::Circu
     local l::Int                                    # Local variable to loop over lines
 
     local f::Array{JuMP.Variable,2}                 # Local variable to represent flow decision variable of model
-    local θ::Array{JuMP.Variable,2}                 # Local variable to represent angle decision variable of model
+    local theta::Array{JuMP.Variable,2}                 # Local variable to represent angle decision variable of model
     local al::Array{Int,2}                          # Local variable to represent contingency
 
     local angle_lag::Array{JuMP.ConstraintRef,2}    # Local variable to represent angle lag constraint reference
@@ -566,13 +573,13 @@ function add_angle_constraint!( model::JuMP.Model , case::Case , circuits::Circu
     #- Assigning values
 
     f = model[:f]
-    θ = model[:θ]
+    theta = model[:theta]
     al = case.al
 
     #-----------------------------------------
     #---  Adding constraints in the model  ---
     #-----------------------------------------
-    @constraint( model , angle_lag[l=1:case.nCir, c=1:(case.nContScen+1)], f[l,c] == ( al[l,c] / circuits.Reat[l] ) * ( θ[circuits.BusFrom[l],c] - θ[circuits.BusTo[l],c] ) )
+    @constraint( model , angle_lag[l=1:case.nCir, c=1:(case.nContScen+1)], f[l,c] == ( al[l,c] / circuits.Reat[l] ) * ( theta[circuits.BusFrom[l],c] - theta[circuits.BusTo[l],c] ) )
 end
 
 #--- add_gen_constraint!: This function creates the maximum and minimum generation constraint ---
@@ -657,7 +664,7 @@ function add_load_balance_constraint!( model::JuMP.Model , case::Case , generato
 
     local g::Array{JuMP.Variable,2}                                 # Local variable to represent generation decision variable
     local f::Array{JuMP.Variable,2}                                 # Local variable to represent flow decision variable
-    local δ::Array{JuMP.Variable,2}                                 # Local variable to represent deficit variable
+    local delta::Array{JuMP.Variable,2}                                 # Local variable to represent deficit variable
 
     local load_balance::Array{JuMP.ConstraintRef,2}                 # Local variable to represent load balance constraint reference
 
@@ -665,7 +672,7 @@ function add_load_balance_constraint!( model::JuMP.Model , case::Case , generato
 
     g = model[:g]
     f = model[:f]
-    δ = model[:δ]
+    delta = model[:delta]
 
     #-----------------------------------------
     #---  Adding constraints in the model  ---
@@ -674,7 +681,7 @@ function add_load_balance_constraint!( model::JuMP.Model , case::Case , generato
     + sum(g[u,c] for u in 1:case.nGen if generators.Bus[u] == b) 
     + sum(f[l,c] for l in 1:case.nCir if circuits.BusTo[l] == b)
     - sum(f[l,c] for l in 1:case.nCir if circuits.BusFrom[l] == b)
-    - δ[b,c]
+    - delta[b,c]
     ==  sum(demands.Dem[d] for d in 1:case.nDem if demands.Bus[d] == b) 
     )
     
@@ -721,8 +728,8 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
     local u::Int                                                    # Local variable to loop over generators
     
     local g::Array{JuMP.Variable,2}                                 # Local variable to represent generation decision variable
-    local δ::Array{JuMP.Variable,2}                                 # Local variable to represent deficit decision variable
-    local δcost::Float64                                 # Local variable to represent deficit cost variable
+    local delta::Array{JuMP.Variable,2}                                 # Local variable to represent deficit decision variable
+    local deltacost::Float64                                 # Local variable to represent deficit cost variable
     local rup::Array{JuMP.Variable,1}                               # Local variable to represent reserve up decision variable
     local rdown::Array{JuMP.Variable,1}                             # Local variable to represent reserve down decision variable
 
@@ -732,8 +739,8 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
     #- Assigning values
 
     g = model[:g]
-    δ = model[:δ]
-    δcost = 10 * maximum(generators.CVU)
+    delta = model[:delta]
+    deltacost = 10 * maximum(generators.CVU)
 
     if case.Flag_Res == 1
         rup   = model[:rup]
@@ -751,11 +758,11 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
         + sum(g[u,1] * generators.CVU[u] for u in 1:case.nGen)
         + sum(rup[u] * generators.RUpCost[u] for u in 1:case.nGen)
         + sum(rdown[u] * generators.RDownCost[u] for u in 1:case.nGen)
-        + sum(δ[b,c] * δcost for b in 1:case.nBus, c in 1:case.nContScen)
+        + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:case.nContScen)
         )
     else
         @objective(  model , Min       , 
-        + sum(δ[b,c] * δcost for b in 1:case.nBus, c in 1:case.nContScen)
+        + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:case.nContScen)
         + sum(g[u,1] * generators.CVU[u] for u in 1:case.nGen)
         )
     end
@@ -803,7 +810,7 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         end
         
         if case.Flag_Ang == 1
-            bus_ang = getvalue( model, :θ )
+            bus_ang = getvalue( model, :theta )
         end
 
         #--- Writing to log the optimal solution
