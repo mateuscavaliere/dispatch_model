@@ -448,6 +448,12 @@ function read_data_base_class_format( path::String )
     BUSES.Num     = collect(1:CASE.nBus)
     BUSES.Name    = map(string, collect(1:CASE.nBus))
     
+     #---- set number of contingencies
+     CASE.nCont = CASE.Flag_Res
+
+     #---- set number of contingency scenarios
+     CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont)
+
     return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
 end
 
@@ -455,9 +461,7 @@ end
 function get_contingency_scenarios(nCir::Int64, nGen::Int64, nCont::Int64)
     local nCen::Int64 = 0 # number of contingency scenarios
     local nTotal::Int64 = nCir + nGen 
-    local al::Array{Int,1} = []
-    local ag::Array{Int,1} = []
-
+   
     for c in 1:nCont
         nCen += factorial(nTotal) / (factorial(nTotal - c) * factorial(c))
     end
@@ -530,11 +534,8 @@ function add_grid_constraint!( model::JuMP.Model , case::Case , circuits::Circui
     local l::Int                                        # Local variable to loop over lines
     
     local f::Array{JuMP.Variable,2}                     # Local variable to represent flow decision variable
-    local al::Array{Int,2}                          # Local variable to represent contingency
-
-    local max_circ_cap::Array{JuMP.ConstraintRef,1}     # Local variable to represent maximum circuit capacity constraint reference
-    local min_circ_cap::Array{JuMP.ConstraintRef,1}     # Local variable to represent minimum circuit capacity constraint reference
-    
+    # local al::Array{Int,2}                          # Local variable to represent contingency
+ 
     #- Assigning values
 
     f = model[:f]
@@ -586,8 +587,7 @@ function add_gen_constraint!( model::JuMP.Model , case::Case , generators::Genco
     local g::Array{JuMP.Variable,2}                 # Local variable to represent generation decision variable
     local rup::Array{JuMP.Variable,1}               # Local variable to represent reserve up decision variable
     local rdown::Array{JuMP.Variable,1}             # Local variable to represent reserve down decision variable
-    local rdown::Array{JuMP.Variable,1}             # Local variable to represent reserve down decision variable
-    
+     
     local max_gen::Array{JuMP.ConstraintRef,1}      # Local variable to represent maximum generation constraint reference
     local min_gen::Array{JuMP.ConstraintRef,1}      # Local variable to represent minimum generation constraint reference
 
@@ -692,8 +692,7 @@ function add_contingency_constraint!( model::JuMP.Model , case::Case , generator
     local g::Array{JuMP.Variable,2}                 # Local variable to represent generation decision variable
     local rup::Array{JuMP.Variable,1}               # Local variable to represent reserve up decision variable
     local rdown::Array{JuMP.Variable,1}             # Local variable to represent reserve down decision variable
-    local rdown::Array{JuMP.Variable,1}             # Local variable to represent reserve down decision variable
-    local ag::Array{Int,2}                          # Local variable to represent contingency variable
+     local ag::Array{Int,2}                          # Local variable to represent contingency variable
     
     #- Assigning values
 
@@ -888,7 +887,7 @@ function build_dispatch( path::String , case:: Case, circuits::Circuits , genera
     #- Add load balance constraints
     add_load_balance_constraint!( MODEL , case , generators , circuits , demands )
 
-    if case.flag_cont!=0
+    if case.Flag_Cont!=0
         add_contingency_constraint!(  MODEL , case , generators)
     end
     #- Add objetive function
