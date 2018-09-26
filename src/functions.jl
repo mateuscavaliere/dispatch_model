@@ -614,8 +614,7 @@ function add_gen_constraint!( model::JuMP.Model , case::Case , generators::Genco
     if case.Flag_Res == 1
         @constraint(model, max_gen[u=1:case.nGen],   g[u,1] + rup[u] <= generators.Pot[u] )
 
-        # not needed unles there is gmin
-        # @constraint(model, min_gen[u=1:case.nGen],  0 <= g[u] - rdown[u] )
+        @constraint(model, min_gen[u=1:case.nGen],  0 <=  g[u,1] - rdown[u] )
     else
         @constraint(model, max_gen[u=1:case.nGen],   g[u,1] <= generators.Pot[u] )
         # @constraint(model, min_gen[u=1:case.nGen],  0 <= g[u])
