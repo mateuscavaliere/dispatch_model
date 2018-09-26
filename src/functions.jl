@@ -889,7 +889,7 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
     
 
     defcit = getvalue( model, :delta )
-    w_Log("\n    Total cost = $(round(getobjectivevalue(model),2)" ,  path)
+    w_Log("\n    Total cost = $(round(getobjectivevalue(model),2))" ,  path)
     w_Log("\n    Total deficit = $(sum(defcit))" ,  path)
 
     elseif status == :Infeasible
