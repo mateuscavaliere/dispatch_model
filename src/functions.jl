@@ -414,8 +414,13 @@ function read_data_base( path::String )
     CASE.nBus , BUSES                              = read_buses(    path );
     
     #---- set number of contingency scenarios
-    CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont, CASE.Flag_Cont)
+    if CASE.Flag_Cont == 0 
+        CASE.nContScen, CASE.ag, CASE.al = 0, ones(CASE.nGen, 1), ones(CASE.nCir, 1)
+    else
 
+        CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont, CASE.Flag_Cont)
+    end
+    
     return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
 end
 
@@ -450,7 +455,12 @@ function read_data_base_class_format( path::String )
      CASE.nCont = CASE.Flag_Res
 
      #---- set number of contingency scenarios
-     CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont, CASE.Flag_Cont)
+     if CASE.Flag_Cont == 0 
+        CASE.nContScen, CASE.ag, CASE.al = 0, ones(CASE.nGen, 1), ones(CASE.nCir, 1)
+    else
+
+        CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont, CASE.Flag_Cont)
+    end
 
     return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
 end
@@ -819,7 +829,7 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
     #--- Reporting results
     if status  == :Optimal
 
-        prices = getdual(getconstraint(model, :load_balance))
+        prices = getdual(getindex(model, :load_balance))
         generation = getvalue( model, :g )
         cir_flow   = getvalue( model, :f )
 
@@ -837,19 +847,19 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         w_Log("\n     Optimal solution found!\n" , path )
 
         for b in 1:case.nBus
-            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(prices[b,1]) R\$/MWh" , path )
+            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(round(prices[b,1],2)) R\$/MWh" , path )
         end
 
         w_Log( " " , path )
 
         for u in 1:case.nGen
-            w_Log("     Optimal generation of $(generators.Name[u]): $(generation[u,1]) MWh" , path )
+            w_Log("     Optimal generation of $(generators.Name[u]): $round(generation[u,1],2) MWh" , path )
         end
 
         w_Log( " " , path )
 
         for l in 1:case.nCir
-            w_Log("     Optimal flow in line $(circuits.Name[l]): $(cir_flow[l,1]) MW" , path )
+            w_Log("     Optimal flow in line $(circuits.Name[l]): $round(cir_flow[l,1],2) MW" , path )
         end
 
         if case.Flag_Res == 1
@@ -857,13 +867,13 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             w_Log( " " , path )
 
             for u in 1:case.nGen
-                w_Log("     Optimal Reserve Up of $(generators.Name[u]): $(res_up_gen[u]) MWh" , path )
+                w_Log("     Optimal Reserve Up of $(generators.Name[u]): $round(res_up_gen[u],2) MWh" , path )
             end
 
             w_Log( " " , path )
 
             for u in 1:case.nGen
-                w_Log("     Optimal Reserve Down of $(generators.Name[u]): $(res_down_gen[u]) MWh" , path )
+                w_Log("     Optimal Reserve Down of $(generators.Name[u]): $round(res_down_gen[u],2) MWh" , path )
             end
 
         end
@@ -873,12 +883,13 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             w_Log( " " , path )
 
             for b in 1:case.nBus
-                w_Log("     Optimal bus angle $(buses.Name[b]): $(bus_ang[b,1]) grad" , path )
+                w_Log("     Optimal bus angle $(buses.Name[b]): $round(bus_ang[b,1],2) grad" , path )
             end
         end
     
 
     defcit = getvalue( model, :delta )
+    w_Log("\n    Total cost = $round(getobjectivevalue(model),2)" ,  path)
     w_Log("\n    Total deficit = $(sum(defcit))" ,  path)
 
     elseif status == :Infeasible
