@@ -11,12 +11,14 @@
 
 using JuMP
 using Clp
+using Combinatorics
 
 #-------------------------------------------
 #----           Defining paths          ----
 #-------------------------------------------
 
-ROOT = joinpath(dirname(@__FILE__),"..")
+# ROOT = joinpath(dirname(@__FILE__),"..")
+ROOT = joinpath(pwd(),"..")
 
 const PATH_SRC  = joinpath( ROOT , "src" )
 
@@ -34,4 +36,4 @@ include( FUNCTIONS )
 #----        Running main module        ----
 #-------------------------------------------
 
-dispatch( PATH_SRC )
+dispatch( PATH_SRC, true )

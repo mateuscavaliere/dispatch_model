@@ -9,6 +9,10 @@ mutable struct Case
     nBus::Int
     nDem::Int
     nCir::Int
+    nCont::Int
+    nContScen::Int
+    ag::Array{Int,2}
+    al::Array{Int,2}
     Flag_Ang::Int
     Flag_Res::Int
     Flag_Cont::Int

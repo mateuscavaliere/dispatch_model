@@ -23,6 +23,15 @@ function string_converter( self::String , tipo::Type , msg::String )
     try
         parse( tipo , self )
     catch
+        @show self
+        error( msg )
+    end
+end;
+function string_converter( self::SubString{String} , tipo::Type , msg::String ) 
+    try
+        parse( tipo , self )
+    catch
+        @show self
         error( msg )
     end
 end;
@@ -52,6 +61,11 @@ function get_paths( path::String = pwd() )
     end
 
     return path_case
+end
+
+#--- getvalue: Function to get value from model and symbol ---
+function getvalue( model::JuMP.Model, s::Symbol )
+    JuMP.getvalue(JuMP.getvariable(model, s))
 end
 
 #--------------------------------------------------------
@@ -87,6 +101,7 @@ function read_options( path::String , file_name::String = "dispatch.dat" )
     flag_ang  = string_converter( iodata[1][27:30]  , Int , "Invalid entry for angular diff option")
     flag_res  = string_converter( iodata[2][27:30]  , Int , "Invalid entry for reserve option")
     flag_cont = string_converter( iodata[3][27:30]  , Int , "Invalid entry for contingency option")
+    cont_crit = string_converter( iodata[4][27:30]  , Int , "Invalid entry for contingency criteria option")
 
     #- Checking user input consistency
 
@@ -108,32 +123,36 @@ function read_options( path::String , file_name::String = "dispatch.dat" )
         exit()
     end
 
-    return( flag_res , flag_ang , flag_cont )
+    return( flag_res , flag_ang , flag_cont, cont_crit )
 end 
 
 #--- read_gencos: Function to read generators configuration ---
-function read_gencos( path::String , file_name::String = "gencos.dat" )
+function read_gencos( path::String , file_name::String = "gencos.dat")
 
     #---------------------------
     #---  Defining variables ---
     #---------------------------
 
     local iofile::IOStream                  # Local variable to buffer connection to gencos.dat file
-    local iodata::Array{String,1}           # Local variable to buffer information from read gencos.dat file
     local u::Int                            # Local variable to loop over gencos 
     local nGen::Int                         # Local variable to buffer the number of gencos
     local gencos::Gencos                    # Local variable to buffer gencos information
-
+    local class_format::Bool =false         # Local variable to check file format
+    
     #---------------------------------
     #--- Reading file (gencos.dat) ---
     #---------------------------------
-
     iofile = open( joinpath( path , file_name ) , "r" )
     iodata = readlines( iofile );
     Base.close( iofile )
 
     #- Removing header
     iodata = iodata[2:end]
+
+    if endswith(file_name, "csv")
+        class_format = true
+        iodata = map(x -> split(x, ","), iodata)
+    end
 
     #-----------------------
     #--- Assigning data  ---
@@ -157,16 +176,28 @@ function read_gencos( path::String , file_name::String = "gencos.dat" )
 
     #- Looping over the read information from gencos.dat 
     for u in 1:nGen
-
-        gencos.Num[u]       = string_converter( iodata[u][1:4]  , Int , "Invalid entry for the number of GENCO")
-        gencos.Name[u]      = strip( iodata[u][6:17] )
-        gencos.Bus[u]       = string_converter( iodata[u][19:22]  , Int     , "Invalid entry for the GENCO bus")
-        gencos.Pot[u]       = string_converter( iodata[u][24:31]  , Float64 , "Invalid entry for the max pot of GENCO")
-        gencos.CVU[u]       = string_converter( iodata[u][33:40]  , Float64 , "Invalid entry for the GENCO CVU")
-        gencos.RUp[u]       = string_converter( iodata[u][42:49]  , Float64 , "Invalid entry for the GENCO reserve up")
-        gencos.RDown[u]     = string_converter( iodata[u][51:58]  , Float64 , "Invalid entry for the GENCO reserve down")
-        gencos.RUpCost[u]   = string_converter( iodata[u][60:71]  , Float64 , "Invalid entry for the GENCO reserve up cost")
-        gencos.RDownCost[u] = string_converter( iodata[u][73:84]  , Float64 , "Invalid entry for the GENCO reserve down cost")
+        if class_format
+            
+            gencos.Num[u]       = u
+            gencos.Name[u]      = string( u )
+            gencos.Bus[u]       = string_converter( iodata[u][3]  , Int     , "Invalid entry for the GENCO bus")
+            gencos.Pot[u]       = string_converter( iodata[u][1]  , Float64 , "Invalid entry for the max pot of GENCO")
+            gencos.CVU[u]       = string_converter( iodata[u][2]  , Float64 , "Invalid entry for the GENCO CVU")
+            gencos.RUp[u]       = string_converter( iodata[u][6]  , Float64 , "Invalid entry for the GENCO reserve up")
+            gencos.RDown[u]     = string_converter( iodata[u][7]  , Float64 , "Invalid entry for the GENCO reserve down")
+            gencos.RUpCost[u]   = string_converter( iodata[u][4]  , Float64 , "Invalid entry for the GENCO reserve up cost")
+            gencos.RDownCost[u] = string_converter( iodata[u][5]  , Float64 , "Invalid entry for the GENCO reserve down cost")
+        else
+            gencos.Num[u]       = string_converter( iodata[u][1:4]  , Int , "Invalid entry for the number of GENCO")
+            gencos.Name[u]      = strip( iodata[u][6:17] )
+            gencos.Bus[u]       = string_converter( iodata[u][19:22]  , Int     , "Invalid entry for the GENCO bus")
+            gencos.Pot[u]       = string_converter( iodata[u][24:31]  , Float64 , "Invalid entry for the max pot of GENCO")
+            gencos.CVU[u]       = string_converter( iodata[u][33:40]  , Float64 , "Invalid entry for the GENCO CVU")
+            gencos.RUp[u]       = string_converter( iodata[u][42:49]  , Float64 , "Invalid entry for the GENCO reserve up")
+            gencos.RDown[u]     = string_converter( iodata[u][51:58]  , Float64 , "Invalid entry for the GENCO reserve down")
+            gencos.RUpCost[u]   = string_converter( iodata[u][60:71]  , Float64 , "Invalid entry for the GENCO reserve up cost")
+            gencos.RDownCost[u] = string_converter( iodata[u][73:84]  , Float64 , "Invalid entry for the GENCO reserve down cost")
+        end
 
     end
 
@@ -186,7 +217,8 @@ function read_demands( path::String , file_name::String = "demand.dat")
     local d::Int                            # Local variable to loop over loads 
     local nDem::Int                         # Local variable to buffer the number of demands
     local demands::Demands                  # Local variable to buffer demands information
-
+    local class_format::Bool =false         # Local variable to check file format
+    
     #---------------------------------
     #--- Reading file (demand.dat) ---
     #---------------------------------
@@ -197,6 +229,10 @@ function read_demands( path::String , file_name::String = "demand.dat")
 
     #- Removing header
     iodata = iodata[2:end]
+
+    if endswith(file_name, "csv")
+        class_format = true
+    end
 
     #-----------------------
     #--- Assigning data  ---
@@ -215,16 +251,20 @@ function read_demands( path::String , file_name::String = "demand.dat")
 
     #- Looping over the read information from gencos.dat 
     for d in 1:nDem
-
-        demands.Num[d]  = string_converter( iodata[d][1:4]  , Int , "Invalid entry for the number of DEMAND")  
-        demands.Name[d] = strip( iodata[d][6:17] ) 
-        demands.Bus[d]  = string_converter( iodata[d][19:22]  , Int     , "Invalid entry for the DEMAND bus") 
-        demands.Dem[d]  = string_converter( iodata[d][24:31]  , Float64 , "Invalid entry for the load of DEMAND") 
-
+        if class_format
+            demands.Num[d]  = d 
+            demands.Name[d] = string( d ) 
+            demands.Bus[d]  = d
+            demands.Dem[d]  = string_converter( string(iodata[d])  , Float64 , "Invalid entry for the load of DEMAND") 
+        else
+            demands.Num[d]  = string_converter( iodata[d][1:4]  , Int , "Invalid entry for the number of DEMAND")  
+            demands.Name[d] = strip( iodata[d][6:17] ) 
+            demands.Bus[d]  = string_converter( iodata[d][19:22]  , Int     , "Invalid entry for the DEMAND bus") 
+            demands.Dem[d]  = string_converter( iodata[d][24:31]  , Float64 , "Invalid entry for the load of DEMAND") 
+        end
     end
 
     return( nDem , demands )
-
 end
 
 #--- read_circuits: Function to read circuits configuration ---
@@ -235,11 +275,11 @@ function read_circuits( path::String , file_name::String = "circs.dat")
     #---------------------------
 
     local iofile::IOStream                  # Local variable to buffer connection to circs.dat file
-    local iodata::Array{String,1}           # Local variable to buffer information from read circs.dat file
     local l::Int                            # Local variable to loop over circuits 
     local nGen::Int                         # Local variable to buffer the number of circuits
     local circuits::Circuits                # Local variable to buffer circuits information
-
+    local class_format::Bool =false         # Local variable to check file format
+    
     #---------------------------------
     #--- Reading file (gencos.dat) ---
     #---------------------------------
@@ -250,6 +290,11 @@ function read_circuits( path::String , file_name::String = "circs.dat")
 
     #- Removing header
     iodata = iodata[2:end]
+
+    if endswith(file_name, "csv")
+        class_format = true
+        iodata = map(x -> split(x, ","), iodata)
+    end
 
     #-----------------------
     #--- Assigning data  ---
@@ -271,13 +316,22 @@ function read_circuits( path::String , file_name::String = "circs.dat")
 
     #- Looping over the read information from circs.dat 
     for l in 1:nCir
-
-        circuits.Num[l]      = string_converter( iodata[l][1:4]  , Int , "Invalid entry for the number of CIRCUIT")
-        circuits.Name[l]     = strip( iodata[l][6:17] )
-        circuits.Cap[l]      = string_converter( iodata[l][19:26]  , Float64 , "Invalid entry for the CIRCUIT capacity" )
-        circuits.Reat[l]     = string_converter( iodata[l][28:35]  , Float64 , "Invalid entry for the CIRCUIT reactance" )
-        circuits.BusFrom[l]  = string_converter( iodata[l][37:40]  , Int     , "Invalid entry for the CIRCUIT bus from" )
-        circuits.BusTo[l]    = string_converter( iodata[l][42:45]  , Int     , "Invalid entry for the CIRCUIT bus to" )
+        if class_format    
+            circuits.Num[l]      = l
+            circuits.Name[l]     = string( l )
+            circuits.Cap[l]      = string_converter( string(iodata[l][1])  , Float64 , "Invalid entry for the CIRCUIT capacity" )
+            circuits.Reat[l]     = string_converter( string(iodata[l][2])  , Float64 , "Invalid entry for the CIRCUIT reactance" )
+            circuits.BusFrom[l]  = string_converter( string(iodata[l][3])  , Int     , "Invalid entry for the CIRCUIT bus from" )
+            circuits.BusTo[l]    = string_converter( string(iodata[l][4])  , Int     , "Invalid entry for the CIRCUIT bus to" )
+        
+        else
+            circuits.Num[l]      = string_converter( iodata[l][1:4]  , Int , "Invalid entry for the number of CIRCUIT")
+            circuits.Name[l]     = strip( iodata[l][6:17] )
+            circuits.Cap[l]      = string_converter( iodata[l][19:26]  , Float64 , "Invalid entry for the CIRCUIT capacity" )
+            circuits.Reat[l]     = string_converter( iodata[l][28:35]  , Float64 , "Invalid entry for the CIRCUIT reactance" )
+            circuits.BusFrom[l]  = string_converter( iodata[l][37:40]  , Int     , "Invalid entry for the CIRCUIT bus from" )
+            circuits.BusTo[l]    = string_converter( iodata[l][42:45]  , Int     , "Invalid entry for the CIRCUIT bus to" )
+        end
 
     end
 
@@ -297,7 +351,7 @@ function read_buses( path::String , file_name::String = "buses.dat")
     local b::Int                            # Local variable to loop over buses 
     local nGen::Int                         # Local variable to buffer the number of buses
     local buses::Buses                      # Local variable to buffer buses information
-
+   
     #---------------------------------
     #--- Reading file (gencos.dat) ---
     #---------------------------------
@@ -341,7 +395,7 @@ function read_data_base( path::String )
 
     #---- Loading case configuration ----
     w_Log("     SDDP configuration", path );
-    CASE.Flag_Res , CASE.Flag_Ang , CASE.Flag_Cont = read_options(  path );
+    CASE.Flag_Res , CASE.Flag_Ang , CASE.Flag_Cont , CASE.nCont = read_options(  path );
 
     #---- Loading generators configuration ----
     w_Log("     Generators configuration", path );
@@ -358,11 +412,87 @@ function read_data_base( path::String )
     #---- Loading buses configuration ----
     w_Log("     Buses configuration", path );
     CASE.nBus , BUSES                              = read_buses(    path );
+    
+    #---- set number of contingency scenarios
+    CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont, CASE.Flag_Cont)
 
     return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
-
 end
 
+function read_data_base_class_format( path::String )
+
+    CASE = Case();
+
+    #---- Loading case configuration ----
+    w_Log("     SDDP configuration", path );
+    CASE.Flag_Res , CASE.Flag_Ang , CASE.Flag_Cont = read_options(  path );
+
+    #---- Loading generators configuration ----
+    w_Log("     Generators configuration", path );
+    CASE.nGen , GENCOS                             = read_gencos(   path, "INPUT_GEN.csv" );
+
+    #---- Loading loads configuration ----
+    w_Log("     Loads configuration", path );
+    CASE.nDem , DEMANDS                            = read_demands(  path, "INPUT_BUS.csv" );
+
+    #---- Loading circuits configuration ----
+    w_Log("     Circuits configuration", path );
+    CASE.nCir , CIRCUITS                           = read_circuits( path, "INPUT_LIN.csv" );
+
+    #---- Loading buses configuration ----
+    w_Log("     Buses configuration", path );
+    CASE.nBus = CASE.nDem
+    BUSES = Buses()
+    BUSES.Num     = collect(1:CASE.nBus)
+    BUSES.Name    = map(string, collect(1:CASE.nBus))
+    
+     #---- set number of contingencies
+     CASE.nCont = CASE.Flag_Res
+
+     #---- set number of contingency scenarios
+     CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont)
+
+    return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
+end
+
+#--- calculates number of contingency scenarios
+function get_contingency_scenarios(nCir::Int64, nGen::Int64, nCont::Int64, criteria::Int)
+    local nCen::Int64 = 0 # number of contingency scenarios
+    local nTotal::Int64 = nCir + nGen 
+   
+    for c in 1:nCont
+        nCen += factorial(nTotal) / (factorial(nTotal - c) * factorial(c))
+    end
+
+    ag = zeros(Int, nCen+1,nGen)
+    al = zeros(Int, nCen+1,nCir)
+    # build array of permutation vectors for each scenario  
+    linha = 0
+    for c in 0:nCont
+        n_zeros = c
+        n_ones = nTotal - c
+        v = [ones(Int64, n_ones); zeros(Int64, n_zeros)]
+        per = unique(permutations(v))
+        
+        for (idx,i) in enumerate(per)
+            linha += 1
+           ag[linha,:] = i[1:nGen]
+           al[linha,:] = i[nGen+1:nTotal]
+        end
+    end
+
+    #--- reset contingencies to match criteria G+T, T or G
+    if criteria == 2 # G
+        al = ones(size(al))
+    elseif criteria == 3 # T
+        ag = ones(size(ag))
+    end
+
+    return nCen, ag', al'
+end
+
+
+# todo parsing street
 #-----------------------------------------------------
 #----           Functions to build model          ----
 #-----------------------------------------------------
@@ -382,12 +512,15 @@ function create_model( case::Case )
 
     myModel = Model( solver = ClpSolver( ) );
 
-    @variable(myModel, f[1:case.nCir] );
-    @variable(myModel, g[1:case.nGen] >= 0);
+    @variable(myModel, f[1:case.nCir, 1:(case.nContScen+1)] );
+    @variable(myModel, g[1:case.nGen, 1:(case.nContScen+1)] >= 0);
+    @variable(myModel, delta[1:case.nBus, 1:(case.nContScen+1)] >= 0);
 
     if case.Flag_Ang == 1
-        @variable(myModel, θ[1:case.nBus] >= 0);
-        @constraint( myModel , θ[1] == 0 )
+        @variable(myModel, theta[1:case.nBus, 1:(case.nContScen+1)]);
+        # @constraint(myModel, upper_theta[b=1:case.nBus, c=1:(case.nContScen+1)], theta[b,c] >= -1);
+        # @constraint(myModel, lower_theta[b=1:case.nBus, c=1:(case.nContScen+1)], theta[b,c] <= 1);
+        @constraint( myModel , theta[1] == 0 )
     end
 
     if case.Flag_Res == 1
@@ -407,21 +540,19 @@ function add_grid_constraint!( model::JuMP.Model , case::Case , circuits::Circui
 
     local l::Int                                        # Local variable to loop over lines
     
-    local f::Array{JuMP.Variable,1}                     # Local variable to represent flow decision variable
-    local θ::Array{JuMP.Variable,1}                     # Local variable to represent angle decision variable
-    
-    local max_circ_cap::Array{JuMP.ConstraintRef,1}     # Local variable to represent maximum circuit capacity constraint reference
-    local min_circ_cap::Array{JuMP.ConstraintRef,1}     # Local variable to represent minimum circuit capacity constraint reference
-    
+    local f::Array{JuMP.Variable,2}                     # Local variable to represent flow decision variable
+    # local al::Array{Int,2}                          # Local variable to represent contingency
+ 
     #- Assigning values
 
     f = model[:f]
-    
+    al = case.al
+
     #-----------------------------------------
     #---  Adding constraints in the model  ---
     #-----------------------------------------
-    @constraint( model , max_circ_cap[l=1:case.nCir], f[l]  <= circuits.Cap[l])
-    @constraint( model, min_circ_cap[l=1:case.nCir], -circuits.Cap[l] <= f[l]  )
+    @constraint( model , max_circ_cap[l=1:case.nCir,c=1:(case.nContScen+1)], f[l,c]  <= circuits.Cap[l] * al[l,c])
+    @constraint( model, min_circ_cap[l=1:case.nCir,c=1:(case.nContScen+1)], -circuits.Cap[l] * al[l,c] <= f[l,c]  )
 end
 
 #--- add_angle_constraint!: This function creates the angle diff constraint ---
@@ -433,20 +564,22 @@ function add_angle_constraint!( model::JuMP.Model , case::Case , circuits::Circu
 
     local l::Int                                    # Local variable to loop over lines
 
-    local f::Array{JuMP.Variable,1}                 # Local variable to represent flow decision variable of model
-    local θ::Array{JuMP.Variable,1}                 # Local variable to represent angle decision variable of model
+    local f::Array{JuMP.Variable,2}                 # Local variable to represent flow decision variable of model
+    local theta::Array{JuMP.Variable,2}                 # Local variable to represent angle decision variable of model
+    local al::Array{Int,2}                          # Local variable to represent contingency
 
-    local angle_lag::Array{JuMP.ConstraintRef,1}    # Local variable to represent angle lag constraint reference
+    local angle_lag::Array{JuMP.ConstraintRef,2}    # Local variable to represent angle lag constraint reference
     
     #- Assigning values
 
     f = model[:f]
-    θ = model[:θ]
+    theta = model[:theta]
+    al = case.al
 
     #-----------------------------------------
     #---  Adding constraints in the model  ---
     #-----------------------------------------
-    @constraint( model , angle_lag[l=1:case.nCir], f[l] == ( 1 / circuits.Reat[l] ) * ( θ[circuits.BusFrom[l]] - θ[circuits.BusTo[l]] ) )
+    @constraint( model , angle_lag[l=1:case.nCir, c=1:(case.nContScen+1)], f[l,c] == ( al[l,c] / circuits.Reat[l] ) * ( theta[circuits.BusFrom[l],c] - theta[circuits.BusTo[l],c] ) )
 end
 
 #--- add_gen_constraint!: This function creates the maximum and minimum generation constraint ---
@@ -458,10 +591,10 @@ function add_gen_constraint!( model::JuMP.Model , case::Case , generators::Genco
 
     local u::Int                                    # Local variable to loop over generators
     
-    local g::Array{JuMP.Variable,1}                 # Local variable to represent generation decision variable
+    local g::Array{JuMP.Variable,2}                 # Local variable to represent generation decision variable
     local rup::Array{JuMP.Variable,1}               # Local variable to represent reserve up decision variable
     local rdown::Array{JuMP.Variable,1}             # Local variable to represent reserve down decision variable
-    
+     
     local max_gen::Array{JuMP.ConstraintRef,1}      # Local variable to represent maximum generation constraint reference
     local min_gen::Array{JuMP.ConstraintRef,1}      # Local variable to represent minimum generation constraint reference
 
@@ -477,17 +610,13 @@ function add_gen_constraint!( model::JuMP.Model , case::Case , generators::Genco
     #-----------------------------------------
     #---  Adding constraints in the model  ---
     #-----------------------------------------
-
-    @constraintref max_gen[1:case.nGen]
-    @constraintref min_gen[1:case.nGen]
     
     if case.Flag_Res == 1
-        @constraint(model, max_gen[u=1:case.nGen],   g[u] + rup[u] <= generators.Pot[u] )
+        @constraint(model, max_gen[u=1:case.nGen],   g[u,1] + rup[u] <= generators.Pot[u] )
 
-        # not needed unles there is gmin
-        # @constraint(model, min_gen[u=1:case.nGen],  0 <= g[u] - rdown[u] )
+        @constraint(model, min_gen[u=1:case.nGen],  0 <=  g[u,1] - rdown[u] )
     else
-        @constraint(model, max_gen[u=1:case.nGen],   g[u] <= generators.Pot[u] )
+        @constraint(model, max_gen[u=1:case.nGen],   g[u,1] <= generators.Pot[u] )
         # @constraint(model, min_gen[u=1:case.nGen],  0 <= g[u])
     end
 end
@@ -520,8 +649,8 @@ function add_reserve_constraint!( model::JuMP.Model , case::Case , generators::G
     @constraint(model, max_rdown[u=1:case.nGen], rdown[u] <= generators.RDown[u] )
 end
 
-#--- add_load_balance_constranint!: This function creates the load balance constraint ---
-function add_load_balance_constranint!( model::JuMP.Model , case::Case , generators::Gencos , circuits::Circuits , demands::Demands )
+#--- add_load_balance_constraint!: This function creates the load balance constraint ---
+function add_load_balance_constraint!( model::JuMP.Model , case::Case , generators::Gencos , circuits::Circuits , demands::Demands )
 
     #---------------------------
     #---  Defining variables ---
@@ -532,32 +661,62 @@ function add_load_balance_constranint!( model::JuMP.Model , case::Case , generat
     local b::Int                                                    # Local variable to loop over buses
     local d::Int                                                    # Local variable to loop over demands
 
-    local g::Array{JuMP.Variable,1}                                 # Local variable to represent generation decision variable
-    local f::Array{JuMP.Variable,1}                                 # Local variable to represent flow decision variable
+    local g::Array{JuMP.Variable,2}                                 # Local variable to represent generation decision variable
+    local f::Array{JuMP.Variable,2}                                 # Local variable to represent flow decision variable
+    local delta::Array{JuMP.Variable,2}                                 # Local variable to represent deficit variable
 
-    local load_balance::Array{JuMP.ConstraintRef,1}                 # Local variable to represent load balance constraint reference
-
-    local aux_gen::JuMP.GenericAffExpr{Float64,JuMP.Variable}       # Auxiliar variable to create generation vector in each bus
-    local aux_flow::JuMP.GenericAffExpr{Float64,JuMP.Variable}      # Auxiliar variable to create flow vector in each bus
-    local aux_dem::Float64                                          # Auxiliar variable to create demand in each bus
+    local load_balance::Array{JuMP.ConstraintRef,2}                 # Local variable to represent load balance constraint reference
 
     #- Assigning values
 
     g = model[:g]
     f = model[:f]
+    delta = model[:delta]
 
     #-----------------------------------------
     #---  Adding constraints in the model  ---
     #-----------------------------------------    
-    @constraint(model, load_balance[b=1:case.nBus], 
-    + sum(g[u] for u in 1:case.nGen if generators.Bus[u] == b) 
-    + sum(f[l] for l in 1:case.nCir if circuits.BusTo[l] == b)
-    - sum(f[l] for l in 1:case.nCir if circuits.BusFrom[l] == b)
+    @constraint(model, load_balance[b=1:case.nBus, c=1:(case.nContScen+1)], 
+    + sum(g[u,c] for u in 1:case.nGen if generators.Bus[u] == b) 
+    + sum(f[l,c] for l in 1:case.nCir if circuits.BusTo[l] == b)
+    - sum(f[l,c] for l in 1:case.nCir if circuits.BusFrom[l] == b)
+    - delta[b,c]
     ==  sum(demands.Dem[d] for d in 1:case.nDem if demands.Bus[d] == b) 
     )
     
 end
 
+#--- add_contingency_constraint!: this function creates the contingency constraint
+function add_contingency_constraint!( model::JuMP.Model , case::Case , generators::Gencos )
+    
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local u::Int                                    # Local variable to loop over generators
+    
+    local g::Array{JuMP.Variable,2}                 # Local variable to represent generation decision variable
+    local rup::Array{JuMP.Variable,1}               # Local variable to represent reserve up decision variable
+    local rdown::Array{JuMP.Variable,1}             # Local variable to represent reserve down decision variable
+     local ag::Array{Int,2}                          # Local variable to represent contingency variable
+    
+    #- Assigning values
+
+    g = model[:g]
+    ag = case.ag
+
+    if case.Flag_Res == 1
+        rup   = model[:rup]
+        rdown = model[:rdown]
+    end
+    
+    #-----------------------------------------
+    #---  Adding constraints in the model  ---
+    #-----------------------------------------
+    @constraint(model, cont_max_gen[u=1:case.nGen,c=2:(case.nContScen+1)],   g[u,c] <= (g[u,1] + rup[u])*ag[u,c])
+    
+    @constraint(model, cont_min_gen[u=1:case.nGen,c=2:(case.nContScen+1)], (g[u,1] - rdown[u])*ag[u,c] <= g[u,c]) 
+end
 #--- add_obj_fun!: This function creates and append the objective function to the model ---
 function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
 
@@ -567,7 +726,9 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
 
     local u::Int                                                    # Local variable to loop over generators
     
-    local g::Array{JuMP.Variable,1}                                 # Local variable to represent generation decision variable
+    local g::Array{JuMP.Variable,2}                                 # Local variable to represent generation decision variable
+    local delta::Array{JuMP.Variable,2}                                 # Local variable to represent deficit decision variable
+    local deltacost::Float64                                 # Local variable to represent deficit cost variable
     local rup::Array{JuMP.Variable,1}                               # Local variable to represent reserve up decision variable
     local rdown::Array{JuMP.Variable,1}                             # Local variable to represent reserve down decision variable
 
@@ -577,6 +738,8 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
     #- Assigning values
 
     g = model[:g]
+    delta = model[:delta]
+    deltacost = 10 * maximum(generators.CVU)
 
     if case.Flag_Res == 1
         rup   = model[:rup]
@@ -591,13 +754,15 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
 
     if case.Flag_Res == 1
         @objective(  model , Min       , 
-        + sum(g[u] * generators.CVU[u] for u in 1:case.nGen)
+        + sum(g[u,1] * generators.CVU[u] for u in 1:case.nGen)
         + sum(rup[u] * generators.RUpCost[u] for u in 1:case.nGen)
-        + sum(down[u] * generators.RDownCost[u] for u in 1:case.nGen)
+        + sum(rdown[u] * generators.RDownCost[u] for u in 1:case.nGen)
+        + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:case.nContScen)
         )
     else
         @objective(  model , Min       , 
-        + sum(g[u] * generators.CVU[u] for u in 1:case.nGen)
+        + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:case.nContScen)
+        + sum(g[u,1] * generators.CVU[u] for u in 1:case.nGen)
         )
     end
 
@@ -632,7 +797,6 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
     status = JuMP.solve( model );
 
     #--- Reporting results
-    
     if status  == :Optimal
 
         prices = getdual(getconstraint(model, :load_balance))
@@ -645,7 +809,7 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         end
         
         if case.Flag_Ang == 1
-            bus_ang = getvalue( model, :θ )
+            bus_ang = getvalue( model, :theta )
         end
 
         #--- Writing to log the optimal solution
@@ -653,19 +817,19 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         w_Log("\n     Optimal solution found!\n" , path )
 
         for b in 1:case.nBus
-            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(prices[b]) R\$/MWh" , path )
+            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(prices[b,1]) R\$/MWh" , path )
         end
 
         w_Log( " " , path )
 
         for u in 1:case.nGen
-            w_Log("     Optimal generation of $(generators.Name[u]): $(generation[u]) MWh" , path )
+            w_Log("     Optimal generation of $(generators.Name[u]): $(generation[u,1]) MWh" , path )
         end
 
         w_Log( " " , path )
 
         for l in 1:case.nCir
-            w_Log("     Optimal flow in line $(circuits.Name[l]): $(cir_flow[l]) MW" , path )
+            w_Log("     Optimal flow in line $(circuits.Name[l]): $(cir_flow[l,1]) MW" , path )
         end
 
         if case.Flag_Res == 1
@@ -689,9 +853,13 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             w_Log( " " , path )
 
             for b in 1:case.nBus
-                w_Log("     Optimal bus angle $(buses.Name[b]): $(bus_ang[l]) grad" , path )
+                w_Log("     Optimal bus angle $(buses.Name[b]): $(bus_ang[b,1]) grad" , path )
             end
         end
+    
+
+    defcit = getvalue( model, :delta )
+    w_Log("\n    Total deficit = $(sum(defcit))" ,  path)
 
     elseif status == :Infeasible
         w_Log("\n     No solution found!\n\n     This problem is Infeasible!" , path )
@@ -727,8 +895,11 @@ function build_dispatch( path::String , case:: Case, circuits::Circuits , genera
     end
 
     #- Add load balance constraints
-    add_load_balance_constranint!( MODEL , case , generators , circuits , demands )
+    add_load_balance_constraint!( MODEL , case , generators , circuits , demands )
 
+    if case.Flag_Cont!=0
+        add_contingency_constraint!(  MODEL , case , generators)
+    end
     #- Add objetive function
     add_obj_fun!( MODEL , case , generators )
 
@@ -743,7 +914,7 @@ end
 #----           Main function          ----
 #------------------------------------------
 
-function dispatch( path::String )
+function dispatch( path::String, class_format::Bool )
     
     PATH_CASE = get_paths( path );
 
@@ -766,7 +937,13 @@ function dispatch( path::String )
 
     w_Log( "  Loading inputs" , PATH_CASE );
 
-    time_counter = @elapsed ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES ) = read_data_base( PATH_CASE );
+    time_counter = @elapsed ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES ) = 
+    
+    if class_format
+        read_data_base_class_format(PATH_CASE)
+    else
+        read_data_base( PATH_CASE );
+    end
 
     w_Log( "\n  Loading data took $(round(time_counter,3)) seconds\n" , PATH_CASE );
 
