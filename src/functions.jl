@@ -65,7 +65,7 @@ end
 
 #--- getvalue: Function to get value from model and symbol ---
 function getvalue( model::JuMP.Model, s::Symbol )
-    JuMP.getvalue(JuMP.getvariable(model, s))
+    JuMP.getvalue(JuMP.getindex(model, s))
 end
 
 #--------------------------------------------------------
