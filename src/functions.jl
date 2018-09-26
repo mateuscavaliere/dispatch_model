@@ -458,34 +458,56 @@ end
 #--- calculates number of contingency scenarios
 function get_contingency_scenarios(nCir::Int64, nGen::Int64, nCont::Int64, criteria::Int)
     local nCen::Int64 = 0 # number of contingency scenarios
-    local nTotal::Int64 = nCir + nGen 
+    local nTotal::Int64 = 0 #nCir + nGen 
    
-    for c in 1:nCont
-        nCen += factorial(nTotal) / (factorial(nTotal - c) * factorial(c))
+    if criteria == 1
+        nTotal += nCir + nGen  
+    elseif criteria == 2
+        nTotal += nGen  
+    elseif  criteria == 3
+        nTotal += nCir  
     end
 
-    ag = zeros(Int, nCen+1,nGen)
-    al = zeros(Int, nCen+1,nCir)
+    for c in 1:nCont
+        nCen += binomial(nTotal, c)
+    end
+
+    ag = ones(Int, nCen+1,nGen)
+    al = ones(Int, nCen+1,nCir)
     # build array of permutation vectors for each scenario  
     linha = 0
-    for c in 0:nCont
-        n_zeros = c
-        n_ones = nTotal - c
-        v = [ones(Int64, n_ones); zeros(Int64, n_zeros)]
-        per = unique(permutations(v))
+    for c in 0:nCont  
+        #--- reset contingencies to match criteria G+T, T or G
         
-        for (idx,i) in enumerate(per)
-            linha += 1
-           ag[linha,:] = i[1:nGen]
-           al[linha,:] = i[nGen+1:nTotal]
+        if criteria == 1 # G+T
+            n_zeros = c
+            n_ones = nTotal - c
+            v = [ones(Int64, n_ones); zeros(Int64, n_zeros)]
+            per = unique(permutations(v))
+            for (idx,i) in enumerate(per)
+                linha += 1
+                ag[linha,:] = i[1:nGen]
+                al[linha,:] = i[nGen+1:nTotal]
+            end
+        elseif criteria == 2 # G
+            n_zeros = c
+            n_ones = nGen - c
+            v = [ones(Int64, n_ones); zeros(Int64, n_zeros)]
+            per = unique(permutations(v))
+            for (idx,i) in enumerate(per)
+                linha += 1
+                ag[linha,:] = i[1:nGen]
+            end
+        elseif criteria == 3 # T
+            n_zeros = c
+            n_ones = nCir - c
+            v = [ones(Int64, n_ones); zeros(Int64, n_zeros)]
+            per = unique(permutations(v))
+            for (idx,i) in enumerate(per)
+                linha += 1
+                al[linha,:] = i[1:nGen]
+            end
         end
-    end
-
-    #--- reset contingencies to match criteria G+T, T or G
-    if criteria == 2 # G
-        al = ones(size(al))
-    elseif criteria == 3 # T
-        ag = ones(size(ag))
     end
 
     return nCen, ag', al'
