@@ -853,13 +853,13 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         w_Log( " " , path )
 
         for u in 1:case.nGen
-            w_Log("     Optimal generation of $(generators.Name[u]): $round(generation[u,1],2) MWh" , path )
+            w_Log("     Optimal generation of $(generators.Name[u]): $(round(generation[u,1],2)) MWh" , path )
         end
 
         w_Log( " " , path )
 
         for l in 1:case.nCir
-            w_Log("     Optimal flow in line $(circuits.Name[l]): $round(cir_flow[l,1],2) MW" , path )
+            w_Log("     Optimal flow in line $(circuits.Name[l]): $(round(cir_flow[l,1],2)) MW" , path )
         end
 
         if case.Flag_Res == 1
@@ -867,13 +867,13 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             w_Log( " " , path )
 
             for u in 1:case.nGen
-                w_Log("     Optimal Reserve Up of $(generators.Name[u]): $round(res_up_gen[u],2) MWh" , path )
+                w_Log("     Optimal Reserve Up of $(generators.Name[u]): $(round(res_up_gen[u],2)) MWh" , path )
             end
 
             w_Log( " " , path )
 
             for u in 1:case.nGen
-                w_Log("     Optimal Reserve Down of $(generators.Name[u]): $round(res_down_gen[u],2) MWh" , path )
+                w_Log("     Optimal Reserve Down of $(generators.Name[u]): $(round(res_down_gen[u],2)) MWh" , path )
             end
 
         end
@@ -883,13 +883,13 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             w_Log( " " , path )
 
             for b in 1:case.nBus
-                w_Log("     Optimal bus angle $(buses.Name[b]): $round(bus_ang[b,1],2) grad" , path )
+                w_Log("     Optimal bus angle $(buses.Name[b]): $(round(bus_ang[b,1],2)) grad" , path )
             end
         end
     
 
     defcit = getvalue( model, :delta )
-    w_Log("\n    Total cost = $round(getobjectivevalue(model),2)" ,  path)
+    w_Log("\n    Total cost = $(round(getobjectivevalue(model),2)" ,  path)
     w_Log("\n    Total deficit = $(sum(defcit))" ,  path)
 
     elseif status == :Infeasible
