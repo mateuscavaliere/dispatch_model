@@ -396,7 +396,6 @@ function create_model( case::Case )
     end
 
     return( myModel)
-
 end
 
 #--- add_grid_constraint!: This function creates the maximum and minimum flow constraint ---
@@ -421,18 +420,8 @@ function add_grid_constraint!( model::JuMP.Model , case::Case , circuits::Circui
     #-----------------------------------------
     #---  Adding constraints in the model  ---
     #-----------------------------------------
-
-    @constraintref max_circ_cap[1:case.nCir]
-    @constraintref min_circ_cap[1:case.nCir]
-
-    for l in 1:case.nCir
-        
-        max_circ_cap[l] = @constraint( model , f[l]  <= circuits.Cap[l])
-        min_circ_cap[l] = @constraint( model , -circuits.Cap[l] <= f[l]  )
-        
-    end
-
-    return( max_circ_cap , min_circ_cap )
+    @constraint( model , max_circ_cap[l=1:case.nCir], f[l]  <= circuits.Cap[l])
+    @constraint( model, min_circ_cap[l=1:case.nCir], -circuits.Cap[l] <= f[l]  )
 end
 
 #--- add_angle_constraint!: This function creates the angle diff constraint ---
@@ -457,17 +446,7 @@ function add_angle_constraint!( model::JuMP.Model , case::Case , circuits::Circu
     #-----------------------------------------
     #---  Adding constraints in the model  ---
     #-----------------------------------------
-
-    @constraintref angle_lag[1:case.nCir]
-
-    for l in 1:case.nCir
-        
-        angle_lag[l] = @constraint( model , f[l] == ( 1 / circuits.Reat[l] ) * ( θ[circuits.BusFrom[l]] - θ[circuits.BusTo[l]] ) )
-
-    end
-
-    return( angle_lag )
-
+    @constraint( model , angle_lag[l=1:case.nCir], f[l] == ( 1 / circuits.Reat[l] ) * ( θ[circuits.BusFrom[l]] - θ[circuits.BusTo[l]] ) )
 end
 
 #--- add_gen_constraint!: This function creates the maximum and minimum generation constraint ---
@@ -503,18 +482,14 @@ function add_gen_constraint!( model::JuMP.Model , case::Case , generators::Genco
     @constraintref min_gen[1:case.nGen]
     
     if case.Flag_Res == 1
-        for u in 1:case.nGen
-            max_gen[u]   = @constraint(model,  g[u] + rup[u] <= generators.Pot[u] )
-            min_gen[u]   = @constraint(model,  0 <= g[u] - rdown[u] )
-        end
-    else
-        for u in 1:case.nGen
-            max_gen[u]   = @constraint(model,  g[u] <= generators.Pot[u] )
-            min_gen[u]   = @constraint(model,  0 <= g[u] )
-        end
-    end
+        @constraint(model, max_gen[u=1:case.nGen],   g[u] + rup[u] <= generators.Pot[u] )
 
-    return( max_gen , min_gen )
+        # not needed unles there is gmin
+        # @constraint(model, min_gen[u=1:case.nGen],  0 <= g[u] - rdown[u] )
+    else
+        @constraint(model, max_gen[u=1:case.nGen],   g[u] <= generators.Pot[u] )
+        # @constraint(model, min_gen[u=1:case.nGen],  0 <= g[u])
+    end
 end
 
 #--- add_reserve_constraint!: This function creates the maximum and minimum reserve constraint ---
@@ -541,15 +516,8 @@ function add_reserve_constraint!( model::JuMP.Model , case::Case , generators::G
     #---  Adding constraints in the model  ---
     #-----------------------------------------
 
-    @constraintref max_rup[1:case.nGen]
-    @constraintref max_rdown[1:case.nGen]
-
-    for u in 1:case.nGen
-        max_rup[u]   = @constraint(model,  rup[u] <= generators.RUp[u] )
-        max_rdown[u] = @constraint(model,  rdown[u] <= generators.RDown[u] )
-    end
-
-    return( max_rup , max_rdown )
+    @constraint(model, max_rup[u=1:case.nGen],  rup[u] <= generators.RUp[u] )
+    @constraint(model, max_rdown[u=1:case.nGen], rdown[u] <= generators.RDown[u] )
 end
 
 #--- add_load_balance_constranint!: This function creates the load balance constraint ---
@@ -580,44 +548,14 @@ function add_load_balance_constranint!( model::JuMP.Model , case::Case , generat
 
     #-----------------------------------------
     #---  Adding constraints in the model  ---
-    #-----------------------------------------
-
-    @constraintref load_balance[1:case.nBus]
-
-    for b in 1:case.nBus
-        
-        aux_gen  = 0
-        aux_flow = 0
-        aux_dem  = 0
-
-        #- Generation associate to the bus
-        for u in 1:case.nGen
-            if generators.Bus[u] == b
-                aux_gen = aux_gen + g[u]
-            end
-        end
-
-        #- Flow direction associate to the bus
-        for l in 1:case.nCir
-            if circuits.BusTo[l] == b
-                aux_flow = aux_flow + f[l]
-            elseif circuits.BusFrom[l] == b
-                aux_flow = aux_flow - f[l]
-            end
-        end
-
-        #- Demand associate to the bus
-        for d in 1:case.nDem
-            if demands.Bus[d] == b
-                aux_dem = aux_dem + demands.Dem[d] 
-            end
-        end
-
-        load_balance[b] = @constraint(model,  aux_gen + aux_flow ==  aux_dem )
-        
-    end
+    #-----------------------------------------    
+    @constraint(model, load_balance[b=1:case.nBus], 
+    + sum(g[u] for u in 1:case.nGen if generators.Bus[u] == b) 
+    + sum(f[l] for l in 1:case.nCir if circuits.BusTo[l] == b)
+    - sum(f[l] for l in 1:case.nCir if circuits.BusFrom[l] == b)
+    ==  sum(demands.Dem[d] for d in 1:case.nDem if demands.Bus[d] == b) 
+    )
     
-    return( load_balance )
 end
 
 #--- add_obj_fun!: This function creates and append the objective function to the model ---
@@ -652,24 +590,22 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
     obj_fun = 0
 
     if case.Flag_Res == 1
-        for u in 1:case.nGen
-            obj_fun = obj_fun + g[u] * generators.CVU[u] + rup[u] * generators.RUpCost[u] + rdown[u] * generators.RDownCost[u]
-        end
+        @objective(  model , Min       , 
+        + sum(g[u] * generators.CVU[u] for u in 1:case.nGen)
+        + sum(rup[u] * generators.RUpCost[u] for u in 1:case.nGen)
+        + sum(down[u] * generators.RDownCost[u] for u in 1:case.nGen)
+        )
     else
-        for u in 1:case.nGen
-            obj_fun = obj_fun + g[u] * generators.CVU[u]
-        end
+        @objective(  model , Min       , 
+        + sum(g[u] * generators.CVU[u] for u in 1:case.nGen)
+        )
     end
 
-    @expression( model , syst_cost , obj_fun   );
-    @objective(  model , Min       , syst_cost);
-
-    return( syst_cost )
-
+    nothing
 end
 
 #--- solve_dispatch: This function calls the solver and write output into .log file ---
-function solve_dispatch( path::String , model::JuMP.Model , constr::Constr , case::Case , circuits::Circuits , generators::Gencos , buses::Buses )
+function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuits::Circuits , generators::Gencos , buses::Buses )
 
     #---------------------------
     #---  Defining variables ---
@@ -699,17 +635,17 @@ function solve_dispatch( path::String , model::JuMP.Model , constr::Constr , cas
     
     if status  == :Optimal
 
-        prices = getdual(constr.load_balance)
-        generation = getvalue( model[:g] )
-        cir_flow   = getvalue( model[:f] )
+        prices = getdual(getconstraint(model, :load_balance))
+        generation = getvalue( model, :g )
+        cir_flow   = getvalue( model, :f )
 
         if case.Flag_Res == 1
-            res_up_gen   = getvalue( model[:rup] )
-            res_down_gen = getvalue( model[:rdown] )
+            res_up_gen   = getvalue( model, :rup )
+            res_down_gen = getvalue( model, :rdown )
         end
         
         if case.Flag_Ang == 1
-            bus_ang = getvalue( model[:θ] )
+            bus_ang = getvalue( model, :θ )
         end
 
         #--- Writing to log the optimal solution
@@ -773,34 +709,34 @@ function build_dispatch( path::String , case:: Case, circuits::Circuits , genera
     MODEL = create_model( case )
 
     #- Add grid constraints
-    CONSTR.max_circ_cap , CONSTR.min_circ_cap = add_grid_constraint!(  MODEL , case , circuits )
+    add_grid_constraint!(  MODEL , case , circuits )
 
     #- Add angle lag constraints
 
     if case.Flag_Ang == 1
-        CONSTR.angle_lag = add_angle_constraint!( MODEL , case , circuits )
+        add_angle_constraint!( MODEL , case , circuits )
     end
 
     #- Add maximum and minimum generation constraints
-    CONSTR.max_gen , CONSTR.min_gen  = add_gen_constraint!( MODEL , case , generators )
+    add_gen_constraint!( MODEL , case , generators )
 
     #- Add maximum and minimum reserve constraints
 
     if case.Flag_Res == 1
-        CONSTR.max_rup , CONSTR.max_rdown = add_reserve_constraint!( MODEL , case , generators )
+        add_reserve_constraint!( MODEL , case , generators )
     end
 
     #- Add load balance constraints
-    CONSTR.load_balance = add_load_balance_constranint!( MODEL , case , generators , circuits , demands )
+    add_load_balance_constranint!( MODEL , case , generators , circuits , demands )
 
     #- Add objetive function
-    syst_cost = add_obj_fun!( MODEL , case , generators )
+    add_obj_fun!( MODEL , case , generators )
 
     #- Writing LP
     writeLP(MODEL, joinpath( path , "dispatch.lp") , genericnames = false)
 
     #- Build and solve optmization problem
-    solve_dispatch( path , MODEL , CONSTR , case , circuits , generators , buses )
+    solve_dispatch( path , MODEL , case , circuits , generators , buses )
 end
 
 #------------------------------------------
