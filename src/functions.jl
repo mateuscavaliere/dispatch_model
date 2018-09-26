@@ -680,7 +680,7 @@ function add_load_balance_constraint!( model::JuMP.Model , case::Case , generato
     + sum(g[u,c] for u in 1:case.nGen if generators.Bus[u] == b) 
     + sum(f[l,c] for l in 1:case.nCir if circuits.BusTo[l] == b)
     - sum(f[l,c] for l in 1:case.nCir if circuits.BusFrom[l] == b)
-    - delta[b,c]
+    # + delta[b,c]
     ==  sum(demands.Dem[d] for d in 1:case.nDem if demands.Bus[d] == b) 
     )
     
@@ -862,7 +862,10 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
     w_Log("\n    Total deficit = $(sum(defcit))" ,  path)
 
     elseif status == :Infeasible
+        
         w_Log("\n     No solution found!\n\n     This problem is Infeasible!" , path )
+        w_Log("\n     $(case.ag)" , path )
+        w_Log("\n     $(case.al)" , path )
     end
 
 end
