@@ -1,0 +1,3 @@
+ NUM ....Name.... .Bus .PotMax. ...CVU.. ..ResUp. .ResDown ..ResUpCost. .ResDownCost
+   1 GENCO A         1   100.00   100.00     50.0     50.0        100.0        100.0
+   2 GENCO B         1    50.00   150.00     25.0     25.0        150.0        150.0
