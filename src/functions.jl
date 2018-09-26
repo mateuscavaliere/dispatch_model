@@ -818,19 +818,19 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         w_Log("\n     Optimal solution found!\n" , path )
 
         for b in 1:case.nBus
-            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(prices[b]) R\$/MWh" , path )
+            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(prices[b,1]) R\$/MWh" , path )
         end
 
         w_Log( " " , path )
 
         for u in 1:case.nGen
-            w_Log("     Optimal generation of $(generators.Name[u]): $(generation[u]) MWh" , path )
+            w_Log("     Optimal generation of $(generators.Name[u]): $(generation[u,1]) MWh" , path )
         end
 
         w_Log( " " , path )
 
         for l in 1:case.nCir
-            w_Log("     Optimal flow in line $(circuits.Name[l]): $(cir_flow[l]) MW" , path )
+            w_Log("     Optimal flow in line $(circuits.Name[l]): $(cir_flow[l,1]) MW" , path )
         end
 
         if case.Flag_Res == 1
@@ -854,9 +854,13 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             w_Log( " " , path )
 
             for b in 1:case.nBus
-                w_Log("     Optimal bus angle $(buses.Name[b]): $(bus_ang[l]) grad" , path )
+                w_Log("     Optimal bus angle $(buses.Name[b]): $(bus_ang[b,1]) grad" , path )
             end
         end
+    
+
+    defcit = getvalue( model, :delta )
+    w_Log("\n    Total deficit = $(sum(defcit))" ,  path)
 
     elseif status == :Infeasible
         w_Log("\n     No solution found!\n\n     This problem is Infeasible!" , path )
