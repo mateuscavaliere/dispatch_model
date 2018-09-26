@@ -450,7 +450,7 @@ function read_data_base_class_format( path::String )
      CASE.nCont = CASE.Flag_Res
 
      #---- set number of contingency scenarios
-     CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont)
+     CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont, CASE.Flag_Cont)
 
     return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
 end
