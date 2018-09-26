@@ -518,9 +518,7 @@ function create_model( case::Case )
 
     if case.Flag_Ang == 1
         @variable(myModel, theta[1:case.nBus, 1:(case.nContScen+1)]);
-        # @constraint(myModel, upper_theta[b=1:case.nBus, c=1:(case.nContScen+1)], theta[b,c] >= -1);
-        # @constraint(myModel, lower_theta[b=1:case.nBus, c=1:(case.nContScen+1)], theta[b,c] <= 1);
-        @constraint( myModel , theta[1] == 0 )
+        # @constraint( myModel , theta[1] == 0 )
     end
 
     if case.Flag_Res == 1
