@@ -769,7 +769,7 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
 
     g = model[:g]
     delta = model[:delta]
-    deltacost = 10 * maximum(generators.CVU)
+    deltacost = 100 * maximum(generators.CVU)
 
     if case.Flag_Res == 1
         rup   = model[:rup]
@@ -787,13 +787,13 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
         + sum(g[u,1] * generators.CVU[u] for u in 1:case.nGen)
         + sum(rup[u] * generators.RUpCost[u] for u in 1:case.nGen)
         + sum(rdown[u] * generators.RDownCost[u] for u in 1:case.nGen)
-        + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:case.nContScen)
+        + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:(case.nContScen+1))
         )
     else
         @objective(  model , Min       , 
-        + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:case.nContScen)
+        + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:(case.nContScen+1))
         + sum(g[u,1] * generators.CVU[u] for u in 1:case.nGen)
-        + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:case.nContScen)
+        + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:(case.nContScen+1))
         )
     end
 
@@ -890,8 +890,9 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
     
 
     defcit = getvalue( model, :delta )
-    w_Log("\n    Total cost = $(round(getobjectivevalue(model),2))" ,  path)
-    w_Log("\n    Total deficit = $(sum(defcit[:,1]))" ,  path)
+    w_Log("\n    Total cost = $(round(getobjectivevalue(model)/1000,2)) k\$" ,  path)
+    w_Log("\n    Total deficit pre = $(sum(defcit[:,1]))" ,  path)
+    w_Log("\n    Total deficit tota = $(sum(defcit))" ,  path)
 
     elseif status == :Infeasible
         
