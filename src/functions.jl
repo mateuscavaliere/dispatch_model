@@ -473,7 +473,7 @@ function get_contingency_scenarios(nCir::Int64, nGen::Int64, nCont::Int64, crite
     if criteria == 1
         nTotal += nCir + nGen  
     elseif criteria == 2
-        nTotal += nGen  
+        nTotal += nGen          
     elseif  criteria == 3
         nTotal += nCir  
     end
@@ -710,7 +710,7 @@ function add_load_balance_constraint!( model::JuMP.Model , case::Case , generato
     + sum(g[u,c] for u in 1:case.nGen if generators.Bus[u] == b) 
     + sum(f[l,c] for l in 1:case.nCir if circuits.BusTo[l] == b)
     - sum(f[l,c] for l in 1:case.nCir if circuits.BusFrom[l] == b)
-    + delta[b,c]
+    # + delta[b,c]
     ==  sum(demands.Dem[d] for d in 1:case.nDem if demands.Bus[d] == b) 
     )
     
@@ -747,6 +747,7 @@ function add_contingency_constraint!( model::JuMP.Model , case::Case , generator
     
     @constraint(model, cont_min_gen[u=1:case.nGen,c=2:(case.nContScen+1)], (g[u,1] - rdown[u])*ag[u,c] <= g[u,c]) 
 end
+
 #--- add_obj_fun!: This function creates and append the objective function to the model ---
 function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
 
@@ -791,7 +792,6 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
         )
     else
         @objective(  model , Min       , 
-        + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:(case.nContScen+1))
         + sum(g[u,1] * generators.CVU[u] for u in 1:case.nGen)
         + sum(delta[b,c] * deltacost for b in 1:case.nBus, c in 1:(case.nContScen+1))
         )
@@ -831,6 +831,9 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
     if status  == :Optimal
 
         prices = getdual(getindex(model, :load_balance))
+        # @show prices
+        # @show case.ag
+        # @show case.al
         generation = getvalue( model, :g )
         cir_flow   = getvalue( model, :f )
 
@@ -848,7 +851,11 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         w_Log("\n     Optimal solution found!\n" , path )
 
         for b in 1:case.nBus
-            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(round(prices[b,1],2)) R\$/MWh" , path )
+            w_Log("     Pre-contingency Marginal cost for the bus $(buses.Name[b]): $(round(prices[b,1],2)) R\$/MWh" , path )
+        end
+
+        for b in 1:case.nBus
+            w_Log("     Secured energy price for the bus $(buses.Name[b]): $(round(sum(prices[b,:]),2)) R\$/MWh" , path )
         end
 
         w_Log( " " , path )
@@ -893,12 +900,13 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
     w_Log("\n    Total cost = $(round(getobjectivevalue(model)/1000,2)) k\$" ,  path)
     w_Log("\n    Total deficit pre = $(sum(defcit[:,1]))" ,  path)
     w_Log("\n    Total deficit tota = $(sum(defcit))" ,  path)
+    w_Log("\n    Total deficit tota = $(defcit[:,1])" ,  path)
 
     elseif status == :Infeasible
         
         w_Log("\n     No solution found!\n\n     This problem is Infeasible!" , path )
-        w_Log("\n     $(case.ag)" , path )
-        w_Log("\n     $(case.al)" , path )
+        # w_Log("\n     $(case.ag)" , path )
+        # w_Log("\n     $(case.al)" , path )
     end
 
 end
