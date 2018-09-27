@@ -493,7 +493,7 @@ function get_contingency_scenarios(nCir::Int64, nGen::Int64, nCont::Int64, crite
             n_zeros = c
             n_ones = nTotal - c
             v = [ones(Int64, n_ones); zeros(Int64, n_zeros)]
-            per = unique(permutations(v))
+            per = unique(multiset_permutations(v, nTotal))
             for (idx,i) in enumerate(per)
                 linha += 1
                 ag[linha,:] = i[1:nGen]
@@ -503,7 +503,7 @@ function get_contingency_scenarios(nCir::Int64, nGen::Int64, nCont::Int64, crite
             n_zeros = c
             n_ones = nGen - c
             v = [ones(Int64, n_ones); zeros(Int64, n_zeros)]
-            per = unique(permutations(v))
+            per = unique(multiset_permutations(v, nTotal))
             for (idx,i) in enumerate(per)
                 linha += 1
                 ag[linha,:] = i[1:nGen]
@@ -512,7 +512,7 @@ function get_contingency_scenarios(nCir::Int64, nGen::Int64, nCont::Int64, crite
             n_zeros = c
             n_ones = nCir - c
             v = [ones(Int64, n_ones); zeros(Int64, n_zeros)]
-            per = unique(permutations(v))
+            per = unique(multiset_permutations(v, nTotal))
             for (idx,i) in enumerate(per)
                 linha += 1
                 al[linha,:] = i[1:nCir]
