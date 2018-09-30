@@ -16,6 +16,7 @@ mutable struct Case
     Flag_Ang::Int
     Flag_Res::Int
     Flag_Cont::Int
+    Flag_nCont::Int
     Case() = new();
 end
 
@@ -24,12 +25,34 @@ mutable struct Gencos
     Num::Array{Int};
     Name::Array{String};
     Bus::Array{Int}
-    Pot::Array{Float64}
+    
+    PotMin::Array{Float64}
+    PotMax::Array{Float64}
+    PotPat1::Array{Float64}
+    PotPat2::Array{Float64}
+    
+    StartUpRamp::Array{Float64}
+    RampUp::Array{Float64}
+    ShutdownRamp::Array{Float64}
+    RampDown::Array{Float64}
+    ReserveUp::Array{Float64}
+    ReserveDown::Array{Float64}
+
+    UpTime::Array{Int}
+    DownTime::Array{Int}
+
     CVU::Array{Float64}
-    RUp::Array{Float64}
-    RDown::Array{Float64}
-    RUpCost::Array{Float64}
-    RDownCost::Array{Float64}
+    CVUPat1::Array{Float64}
+    CVUPat2::Array{Float64}
+    CVUPat3::Array{Float64}
+
+    StartUpCost_1::Array{Float64}
+    StartUpCost_2::Array{Float64}
+    StartUpCost_3::Array{Float64}
+    ShutdownCost::Array{Float64}
+    ReserveUpCost::Array{Float64}
+    ReserveDownCost::Array{Float64}
+
     Gencos() = new();
 end
 
@@ -39,9 +62,9 @@ mutable struct Demands
     Name::Array{String};
     Bus::Array{Int}
     Dem::Array{Float64}
+    Profile::Array{Float64}
     Demands() = new();
 end
-
 
 #--- Circuits: Struct to buffer the circuits config
 mutable struct Circuits
