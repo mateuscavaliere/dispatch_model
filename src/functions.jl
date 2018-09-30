@@ -19,6 +19,7 @@ function w_Log( msg::String, path::String , flagConsole::Int = 1, flagLog::Int =
 end
 
 #--- stringConv: Function to convert read strings to another type ---
+
 function string_converter( self::String , tipo::Type , msg::String ) 
     try
         parse( tipo , self )
@@ -27,6 +28,7 @@ function string_converter( self::String , tipo::Type , msg::String )
         error( msg )
     end
 end;
+
 function string_converter( self::SubString{String} , tipo::Type , msg::String ) 
     try
         parse( tipo , self )
@@ -65,7 +67,7 @@ end
 
 #--- getvalue: Function to get value from model and symbol ---
 function getvalue( model::JuMP.Model, s::Symbol )
-    JuMP.getvalue(JuMP.getindex(model, s))
+    JuMP.getvalue( JuMP.getindex( model , s ) )
 end
 
 #--------------------------------------------------------
@@ -81,10 +83,10 @@ function read_options( path::String , file_name::String = "dispatch.dat" )
 
     local iofile::IOStream                  # Local variable to buffer connection to gencos.dat file
     local iodata::Array{String,1}           # Local variable to buffer information from read gencos.dat file
-    local i::Int                            # Local variable to loop over informations
     local flag_res::Int                     # Local variable to buffer reserve option
     local flag_ang::Int                     # Local variable to buffer angular diff option
-    local flag_cont::Int                 # Local variable to buffer contingency option
+    local flag_cont::Int                    # Local variable to buffer contingency option
+    local flag_cont_crit::Int               # Local variable to buffer contingency criteria option
 
     #---------------------------------
     #--- Reading file (gencos.dat) ---
@@ -98,32 +100,29 @@ function read_options( path::String , file_name::String = "dispatch.dat" )
     #--- Assigning data  ---
     #-----------------------
     
-    flag_ang  = string_converter( iodata[1][27:30]  , Int , "Invalid entry for angular diff option")
-    flag_res  = string_converter( iodata[2][27:30]  , Int , "Invalid entry for reserve option")
-    flag_cont = string_converter( iodata[3][27:30]  , Int , "Invalid entry for contingency option")
-    cont_crit = string_converter( iodata[4][27:30]  , Int , "Invalid entry for contingency criteria option")
+    flag_ang       = string_converter( iodata[1][27:30]  , Int , "Invalid entry for angular diff option")
+    flag_res       = string_converter( iodata[2][27:30]  , Int , "Invalid entry for reserve option")
+    flag_cont      = string_converter( iodata[3][27:30]  , Int , "Invalid entry for contingency option")
+    flag_cont_crit = string_converter( iodata[4][27:30]  , Int , "Invalid entry for contingency criteria option")
 
-    #- Checking user input consistency
+    #--- Checking user input consistency
 
     #- Reserve option
     if (flag_res != 0) & (flag_res != 1)
-
         exit()
     end
 
     #- Angular diff option
     if (flag_ang != 0) & (flag_ang != 1)
-
         exit()
     end
 
     #- Contingency option
     if (flag_cont != 0) & (flag_cont != 1) & (flag_cont != 2) & (flag_cont != 3)
-
         exit()
     end
 
-    return( flag_res , flag_ang , flag_cont, cont_crit )
+    return( flag_res , flag_ang , flag_cont, flag_cont_crit )
 end 
 
 #--- read_gencos: Function to read generators configuration ---
@@ -394,7 +393,7 @@ function read_data_base( path::String )
     CASE = Case();
 
     #---- Loading case configuration ----
-    w_Log("     SDDP configuration", path );
+    w_Log("     Case configuration", path );
     CASE.Flag_Res , CASE.Flag_Ang , CASE.Flag_Cont , CASE.nCont = read_options(  path );
 
     #---- Loading generators configuration ----
@@ -413,11 +412,10 @@ function read_data_base( path::String )
     w_Log("     Buses configuration", path );
     CASE.nBus , BUSES                              = read_buses(    path );
     
-    #---- set number of contingency scenarios
+    #---- Set number of contingency scenarios ----
     if CASE.Flag_Cont == 0 
         CASE.nContScen, CASE.ag, CASE.al = 0, ones(CASE.nGen, 1), ones(CASE.nCir, 1)
     else
-
         CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont, CASE.Flag_Cont)
     end
     
@@ -549,8 +547,7 @@ function create_model( case::Case )
     @variable(myModel, delta[1:case.nBus, 1:(case.nContScen+1)] >= 0);
 
     if case.Flag_Ang == 1
-        @variable(myModel, theta[1:case.nBus, 1:(case.nContScen+1)]);
-        # @constraint( myModel , theta[1] == 0 )
+        @variable(myModel, theta[1:case.nBus, 1:(case.nContScen+1)]);        
     end
 
     if case.Flag_Res == 1
@@ -831,9 +828,6 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
     if status  == :Optimal
 
         prices = getdual(getindex(model, :load_balance))
-        # @show prices
-        # @show case.ag
-        # @show case.al
         generation = getvalue( model, :g )
         cir_flow   = getvalue( model, :f )
 
