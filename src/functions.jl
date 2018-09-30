@@ -125,18 +125,18 @@ function read_options( path::String , file_name::String = "dispatch.dat" )
     return( flag_res , flag_ang , flag_cont, flag_cont_crit )
 end 
 
-#--- read_gencos: Function to read generators configuration ---
-function read_gencos( path::String , file_name::String = "gencos.dat")
+function read_gencos( path::String , file_name::String = "gencos.csv")
 
     #---------------------------
     #---  Defining variables ---
     #---------------------------
 
-    local iofile::IOStream                  # Local variable to buffer connection to gencos.dat file
-    local u::Int                            # Local variable to loop over gencos 
-    local nGen::Int                         # Local variable to buffer the number of gencos
-    local gencos::Gencos                    # Local variable to buffer gencos information
-    local class_format::Bool =false         # Local variable to check file format
+    local iofile::IOStream                      # Local variable to buffer connection to gencos.dat file
+    local iodata::Array{String,1}               # Local variable to buffer information from read gencos.dat file
+    local auxdata::Array{SubString{String},1}   # Local variable to buffer information after parsing
+    local u::Int                                # Local variable to loop over gencos 
+    local nGen::Int                             # Local variable to buffer the number of gencos
+    local gencos::Gencos                        # Local variable to buffer gencos information
     
     #---------------------------------
     #--- Reading file (gencos.dat) ---
@@ -148,11 +148,6 @@ function read_gencos( path::String , file_name::String = "gencos.dat")
     #- Removing header
     iodata = iodata[2:end]
 
-    if endswith(file_name, "csv")
-        class_format = true
-        iodata = map(x -> split(x, ","), iodata)
-    end
-
     #-----------------------
     #--- Assigning data  ---
     #-----------------------
@@ -162,42 +157,63 @@ function read_gencos( path::String , file_name::String = "gencos.dat")
 
     #- Create struct to buffer gencos information
 
-    gencos           = Gencos()
-    gencos.Num       = Array{Int}(nGen)
-    gencos.Name      = Array{String}(nGen)
-    gencos.Bus       = Array{Int}(nGen)
-    gencos.Pot       = Array{Float64}(nGen)
-    gencos.CVU       = Array{Float64}(nGen)
-    gencos.RUp       = Array{Float64}(nGen)
-    gencos.RDown     = Array{Float64}(nGen)
-    gencos.RUpCost   = Array{Float64}(nGen)
-    gencos.RDownCost = Array{Float64}(nGen)
-
+    gencos                 = Gencos()
+    gencos.Num             = Array{Int}(nGen)
+    gencos.Name            = Array{String}(nGen)
+    gencos.Bus             = Array{Int}(nGen)
+    gencos.PotMin          = Array{Float64}(nGen)
+    gencos.PotMax          = Array{Float64}(nGen)
+    gencos.PotPat1         = Array{Float64}(nGen)
+    gencos.PotPat2         = Array{Float64}(nGen)
+    gencos.StartUpRamp     = Array{Float64}(nGen)
+    gencos.RampUp          = Array{Float64}(nGen)
+    gencos.ShutdownRamp    = Array{Float64}(nGen)
+    gencos.RampDown        = Array{Float64}(nGen)
+    gencos.ReserveUp       = Array{Float64}(nGen)
+    gencos.ReserveDown     = Array{Float64}(nGen)
+    gencos.UpTime          = Array{Int}(nGen)
+    gencos.DownTime        = Array{Int}(nGen)
+    gencos.CVU             = Array{Float64}(nGen)
+    gencos.CVUPat1         = Array{Float64}(nGen)
+    gencos.CVUPat2         = Array{Float64}(nGen)
+    gencos.CVUPat3         = Array{Float64}(nGen)
+    gencos.StartUpCost_1   = Array{Float64}(nGen)
+    gencos.StartUpCost_2   = Array{Float64}(nGen)
+    gencos.StartUpCost_3   = Array{Float64}(nGen)
+    gencos.ShutdownCost    = Array{Float64}(nGen)
+    gencos.ReserveUpCost   = Array{Float64}(nGen)
+    gencos.ReserveDownCost = Array{Float64}(nGen)
+    
     #- Looping over the read information from gencos.dat 
-    for u in 1:nGen
-        if class_format
-            
-            gencos.Num[u]       = u
-            gencos.Name[u]      = string( u )
-            gencos.Bus[u]       = string_converter( iodata[u][3]  , Int     , "Invalid entry for the GENCO bus")
-            gencos.Pot[u]       = string_converter( iodata[u][1]  , Float64 , "Invalid entry for the max pot of GENCO")
-            gencos.CVU[u]       = string_converter( iodata[u][2]  , Float64 , "Invalid entry for the GENCO CVU")
-            gencos.RUp[u]       = string_converter( iodata[u][6]  , Float64 , "Invalid entry for the GENCO reserve up")
-            gencos.RDown[u]     = string_converter( iodata[u][7]  , Float64 , "Invalid entry for the GENCO reserve down")
-            gencos.RUpCost[u]   = string_converter( iodata[u][4]  , Float64 , "Invalid entry for the GENCO reserve up cost")
-            gencos.RDownCost[u] = string_converter( iodata[u][5]  , Float64 , "Invalid entry for the GENCO reserve down cost")
-        else
-            gencos.Num[u]       = string_converter( iodata[u][1:4]  , Int , "Invalid entry for the number of GENCO")
-            gencos.Name[u]      = strip( iodata[u][6:17] )
-            gencos.Bus[u]       = string_converter( iodata[u][19:22]  , Int     , "Invalid entry for the GENCO bus")
-            gencos.Pot[u]       = string_converter( iodata[u][24:31]  , Float64 , "Invalid entry for the max pot of GENCO")
-            gencos.CVU[u]       = string_converter( iodata[u][33:40]  , Float64 , "Invalid entry for the GENCO CVU")
-            gencos.RUp[u]       = string_converter( iodata[u][42:49]  , Float64 , "Invalid entry for the GENCO reserve up")
-            gencos.RDown[u]     = string_converter( iodata[u][51:58]  , Float64 , "Invalid entry for the GENCO reserve down")
-            gencos.RUpCost[u]   = string_converter( iodata[u][60:71]  , Float64 , "Invalid entry for the GENCO reserve up cost")
-            gencos.RDownCost[u] = string_converter( iodata[u][73:84]  , Float64 , "Invalid entry for the GENCO reserve down cost")
-        end
 
+    for u in 1:nGen
+        auxdata = split( iodata[u] , "," )
+        gencos.Num[u]             = string_converter( auxdata[1]  , Int , "Invalid entry for the number of genco $(u) ")
+        gencos.Name[u]            = strip( auxdata[2] )
+        gencos.Bus[u]             = string_converter( auxdata[3]  , Int     , "Invalid entry for the bus of genco $(u)")
+        gencos.PotMin[u]          = string_converter( auxdata[4]  , Float64 , "Invalid entry for the min pot of genco $(u) ")
+        gencos.PotMax[u]          = string_converter( auxdata[5]  , Float64 , "Invalid entry for the max pot of genco $(u) ")
+        gencos.PotPat1[u]         = string_converter( auxdata[6]  , Float64 , "Invalid entry for the Pot Pat 1 of genco $(u) ")
+        gencos.PotPat2[u]         = string_converter( auxdata[7]  , Float64 , "Invalid entry for the Pot Pat 2 of genco $(u) ")
+        gencos.StartUpRamp[u]     = string_converter( auxdata[8]  , Float64 , "Invalid entry for the Start-Up Ramp of genco $(u) ")
+        gencos.RampUp[u]          = string_converter( auxdata[9]  , Float64 , "Invalid entry for the Ramp-Up of genco $(u) ")
+        gencos.ShutdownRamp[u]    = string_converter( auxdata[10]  , Float64 , "Invalid entry for the Shutdown Ramp of genco $(u) ")
+        gencos.RampDown[u]        = string_converter( auxdata[11]  , Float64 , "Invalid entry for the Ramp-Down of genco $(u) ")
+        gencos.ReserveUp[u]       = string_converter( auxdata[12]  , Float64 , "Invalid entry for the Reserve-Up of genco $(u) ")
+        gencos.ReserveDown[u]     = string_converter( auxdata[13]  , Float64 , "Invalid entry for the Reserve-Down of genco $(u) ")
+        gencos.UpTime[u]          = string_converter( auxdata[14]  , Int     , "Invalid entry for the Up Time of genco $(u) ")
+        gencos.DownTime[u]        = string_converter( auxdata[15]  , Int     , "Invalid entry for the Down Time of genco $(u) ")
+        gencos.CVU[u]             = string_converter( auxdata[16]  , Float64 , "Invalid entry for the CVU of genco $(u) ")
+        gencos.CVUPat1[u]         = string_converter( auxdata[17]  , Float64 , "Invalid entry for the CVU Pat 1 of genco $(u) ")
+        gencos.CVUPat2[u]         = string_converter( auxdata[18]  , Float64 , "Invalid entry for the CVU Pat 2 of genco $(u) ")
+        gencos.CVUPat3[u]         = string_converter( auxdata[19]  , Float64 , "Invalid entry for the CVU Pat 3 of genco $(u) ")
+        gencos.StartUpCost_1[u]   = string_converter( auxdata[20]  , Float64 , "Invalid entry for the Start-Up Cost 1 of genco $(u) ")
+        gencos.StartUpCost_2[u]   = string_converter( auxdata[21]  , Float64 , "Invalid entry for the Start-Up Cost 2 of genco $(u) ")
+        gencos.StartUpCost_3[u]   = string_converter( auxdata[22]  , Float64 , "Invalid entry for the Start-Up Cost 3 of genco $(u) ")
+        gencos.ShutdownCost[u]    = string_converter( auxdata[23]  , Float64 , "Invalid entry for the Shutdown Cost of genco $(u) ")
+        gencos.ReserveUpCost[u]   = string_converter( auxdata[24]  , Float64 , "Invalid entry for the Reserve Up Cost of genco $(u) ")
+        gencos.ReserveDownCost[u] = string_converter( auxdata[25]  , Float64 , "Invalid entry for the Reserve Down Cost of genco $(u) ")
+        
     end
 
     return( nGen , gencos )
@@ -205,18 +221,19 @@ function read_gencos( path::String , file_name::String = "gencos.dat")
 end
 
 #--- read_demands: Function to read demands configuration ---
-function read_demands( path::String , file_name::String = "demand.dat")
+function read_demands( path::String , file_name::String = "demand.csv")
 
     #---------------------------
     #---  Defining variables ---
     #---------------------------
 
-    local iofile::IOStream                  # Local variable to buffer connection to demands.dat file
-    local iodata::Array{String,1}           # Local variable to buffer information from read demands.dat file
-    local d::Int                            # Local variable to loop over loads 
-    local nDem::Int                         # Local variable to buffer the number of demands
-    local demands::Demands                  # Local variable to buffer demands information
-    local class_format::Bool =false         # Local variable to check file format
+    local iofile::IOStream                      # Local variable to buffer connection to demands.dat file
+    local iodata::Array{String,1}               # Local variable to buffer information from read demands.dat file
+    local auxdata::Array{SubString{String},1}   # Local variable to buffer information after parsing
+    local d::Int                                # Local variable to loop over loads 
+    local t::Int                                # Local variable to loop over periods
+    local nDem::Int                             # Local variable to buffer the number of demands
+    local demands::Demands                      # Local variable to buffer demands information
     
     #---------------------------------
     #--- Reading file (demand.dat) ---
@@ -229,37 +246,30 @@ function read_demands( path::String , file_name::String = "demand.dat")
     #- Removing header
     iodata = iodata[2:end]
 
-    if endswith(file_name, "csv")
-        class_format = true
-    end
-
     #-----------------------
     #--- Assigning data  ---
     #-----------------------
 
-    #- Get the number of simulated gencos
+    #- Get the number of simulated demand
     nDem = length( iodata )
 
-    #- Create struct to buffer gencos information
+    #- Create struct to buffer demands information
+    demands         = Demands()
+    demands.Num     = Array{Int}(nDem)
+    demands.Name    = Array{String}(nDem)
+    demands.Bus     = Array{Int}(nDem)
+    demands.Dem     = Array{Float64}(nDem)
+    demands.Profile = Array{Float64}(nDem,24)
 
-    demands      = Demands()
-    demands.Num  = Array{Int}(nDem)
-    demands.Name = Array{String}(nDem)
-    demands.Bus  = Array{Int}(nDem)
-    demands.Dem  = Array{Float64}(nDem)
-
-    #- Looping over the read information from gencos.dat 
+    #- Looping over the read information from demand.dat 
     for d in 1:nDem
-        if class_format
-            demands.Num[d]  = d 
-            demands.Name[d] = string( d ) 
-            demands.Bus[d]  = d
-            demands.Dem[d]  = string_converter( string(iodata[d])  , Float64 , "Invalid entry for the load of DEMAND") 
-        else
-            demands.Num[d]  = string_converter( iodata[d][1:4]  , Int , "Invalid entry for the number of DEMAND")  
-            demands.Name[d] = strip( iodata[d][6:17] ) 
-            demands.Bus[d]  = string_converter( iodata[d][19:22]  , Int     , "Invalid entry for the DEMAND bus") 
-            demands.Dem[d]  = string_converter( iodata[d][24:31]  , Float64 , "Invalid entry for the load of DEMAND") 
+        auxdata         = split( iodata[d] , "," )
+        demands.Num[d]  = string_converter( auxdata[1]  , Int , "Invalid entry for the number of demand $(d)")  
+        demands.Name[d] = strip( auxdata[2] ) 
+        demands.Bus[d]  = string_converter( auxdata[3]  , Int     , "Invalid entry for the demand bus $(d)") 
+        demands.Dem[d]  = string_converter( auxdata[4]  , Float64 , "Invalid entry for the load of demand $(d)")
+        for t in 1:24
+            demands.Profile[d,t] = string_converter( auxdata[4+t]  , Float64 , "Invalid entry for the load profile of demand $(d) in hour $(t)")
         end
     end
 
@@ -267,17 +277,18 @@ function read_demands( path::String , file_name::String = "demand.dat")
 end
 
 #--- read_circuits: Function to read circuits configuration ---
-function read_circuits( path::String , file_name::String = "circs.dat")
+function read_circuits( path::String , file_name::String = "circs.csv")
 
     #---------------------------
     #---  Defining variables ---
     #---------------------------
 
-    local iofile::IOStream                  # Local variable to buffer connection to circs.dat file
-    local l::Int                            # Local variable to loop over circuits 
-    local nGen::Int                         # Local variable to buffer the number of circuits
-    local circuits::Circuits                # Local variable to buffer circuits information
-    local class_format::Bool =false         # Local variable to check file format
+    local iofile::IOStream                      # Local variable to buffer connection to circs.dat file
+    local iodata::Array{String,1}               # Local variable to buffer information from read circs.dat file
+    local auxdata::Array{SubString{String},1}   # Local variable to buffer information after parsing
+    local l::Int                                # Local variable to loop over circuits 
+    local nCir::Int                             # Local variable to buffer the number of circuits
+    local circuits::Circuits                    # Local variable to buffer circuits information
     
     #---------------------------------
     #--- Reading file (gencos.dat) ---
@@ -289,11 +300,6 @@ function read_circuits( path::String , file_name::String = "circs.dat")
 
     #- Removing header
     iodata = iodata[2:end]
-
-    if endswith(file_name, "csv")
-        class_format = true
-        iodata = map(x -> split(x, ","), iodata)
-    end
 
     #-----------------------
     #--- Assigning data  ---
@@ -312,26 +318,15 @@ function read_circuits( path::String , file_name::String = "circs.dat")
     circuits.BusFrom = Array{Int}(nCir)
     circuits.BusTo   = Array{Int}(nCir)
     
-
     #- Looping over the read information from circs.dat 
     for l in 1:nCir
-        if class_format    
-            circuits.Num[l]      = l
-            circuits.Name[l]     = string( l )
-            circuits.Cap[l]      = string_converter( string(iodata[l][1])  , Float64 , "Invalid entry for the CIRCUIT capacity" )
-            circuits.Reat[l]     = string_converter( string(iodata[l][2])  , Float64 , "Invalid entry for the CIRCUIT reactance" )
-            circuits.BusFrom[l]  = string_converter( string(iodata[l][3])  , Int     , "Invalid entry for the CIRCUIT bus from" )
-            circuits.BusTo[l]    = string_converter( string(iodata[l][4])  , Int     , "Invalid entry for the CIRCUIT bus to" )
-        
-        else
-            circuits.Num[l]      = string_converter( iodata[l][1:4]  , Int , "Invalid entry for the number of CIRCUIT")
-            circuits.Name[l]     = strip( iodata[l][6:17] )
-            circuits.Cap[l]      = string_converter( iodata[l][19:26]  , Float64 , "Invalid entry for the CIRCUIT capacity" )
-            circuits.Reat[l]     = string_converter( iodata[l][28:35]  , Float64 , "Invalid entry for the CIRCUIT reactance" )
-            circuits.BusFrom[l]  = string_converter( iodata[l][37:40]  , Int     , "Invalid entry for the CIRCUIT bus from" )
-            circuits.BusTo[l]    = string_converter( iodata[l][42:45]  , Int     , "Invalid entry for the CIRCUIT bus to" )
-        end
-
+        auxdata              = split( iodata[l] , "," )
+        circuits.Num[l]      = string_converter( auxdata[1]  , Int , "Invalid entry for the number of CIRCUIT")
+        circuits.Name[l]     = strip( auxdata[2] )
+        circuits.Cap[l]      = string_converter( auxdata[3]  , Float64 , "Invalid entry for the CIRCUIT capacity" )
+        circuits.Reat[l]     = string_converter( auxdata[4]  , Float64 , "Invalid entry for the CIRCUIT reactance" )
+        circuits.BusFrom[l]  = string_converter( auxdata[5]  , Int     , "Invalid entry for the CIRCUIT bus from" )
+        circuits.BusTo[l]    = string_converter( auxdata[6]  , Int     , "Invalid entry for the CIRCUIT bus to" )
     end
 
     return( nCir , circuits )
@@ -339,20 +334,21 @@ function read_circuits( path::String , file_name::String = "circs.dat")
 end
 
 #--- read_buses: Function to read buses configuration ---
-function read_buses( path::String , file_name::String = "buses.dat")
+function read_buses( path::String , file_name::String = "buses.csv")
 
     #---------------------------
     #---  Defining variables ---
     #---------------------------
 
-    local iofile::IOStream                  # Local variable to buffer connection to buses.dat file
-    local iodata::Array{String,1}           # Local variable to buffer information from read buses.dat file
-    local b::Int                            # Local variable to loop over buses 
-    local nGen::Int                         # Local variable to buffer the number of buses
-    local buses::Buses                      # Local variable to buffer buses information
+    local iofile::IOStream                      # Local variable to buffer connection to buses.dat file
+    local iodata::Array{String,1}               # Local variable to buffer information from read buses.dat file
+    local auxdata::Array{SubString{String},1}   # Local variable to buffer information after parsing
+    local b::Int                                # Local variable to loop over buses 
+    local nGen::Int                             # Local variable to buffer the number of buses
+    local buses::Buses                          # Local variable to buffer buses information
    
     #---------------------------------
-    #--- Reading file (gencos.dat) ---
+    #--- Reading file (buses.dat) ---
     #---------------------------------
 
     iofile = open( joinpath( path , file_name ) , "r" )
@@ -370,17 +366,15 @@ function read_buses( path::String , file_name::String = "buses.dat")
     nBus = length( iodata )
 
     #- Create struct to buffer gencos information
-
     buses         = Buses()
     buses.Num     = Array{Int}(nBus)
     buses.Name    = Array{String}(nBus)
 
-    #- Looping over the read information from circs.dat 
+    #- Looping over the read information from buses.dat 
     for b in 1:nBus
-
-        buses.Num[b]      = string_converter( iodata[b][1:4]  , Int , "Invalid entry for the number of BUS")
-        buses.Name[b]     = strip( iodata[b][6:17] )
-    
+        auxdata        = split( iodata[b] , "," )
+        buses.Num[b]   = string_converter( auxdata[1]  , Int , "Invalid entry for the number of BUS")
+        buses.Name[b]  = strip( auxdata[2] )
     end
 
     return( nBus , buses )
@@ -394,7 +388,7 @@ function read_data_base( path::String )
 
     #---- Loading case configuration ----
     w_Log("     Case configuration", path );
-    CASE.Flag_Res , CASE.Flag_Ang , CASE.Flag_Cont , CASE.nCont = read_options(  path );
+    CASE.Flag_Res , CASE.Flag_Ang , CASE.Flag_Cont , CASE.Flag_nCont = read_options(  path );
 
     #---- Loading generators configuration ----
     w_Log("     Generators configuration", path );
@@ -416,7 +410,7 @@ function read_data_base( path::String )
     if CASE.Flag_Cont == 0 
         CASE.nContScen, CASE.ag, CASE.al = 0, ones(CASE.nGen, 1), ones(CASE.nCir, 1)
     else
-        CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont, CASE.Flag_Cont)
+        CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.Flag_nCont, CASE.Flag_Cont)
     end
     
     return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
@@ -450,21 +444,21 @@ function read_data_base_class_format( path::String )
     BUSES.Name    = map(string, collect(1:CASE.nBus))
     
      #---- set number of contingencies
-     CASE.nCont = CASE.Flag_Res
+     CASE.Flag_nCont = CASE.Flag_Res
 
      #---- set number of contingency scenarios
      if CASE.Flag_Cont == 0 
         CASE.nContScen, CASE.ag, CASE.al = 0, ones(CASE.nGen, 1), ones(CASE.nCir, 1)
     else
 
-        CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.nCont, CASE.Flag_Cont)
+        CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.Flag_nCont, CASE.Flag_Cont)
     end
 
     return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
 end
 
 #--- calculates number of contingency scenarios
-function get_contingency_scenarios(nCir::Int64, nGen::Int64, nCont::Int64, criteria::Int)
+function get_contingency_scenarios( nCir::Int64 , nGen::Int64 , nCont::Int64 , criteria::Int )
     local nCen::Int64 = 0 # number of contingency scenarios
     local nTotal::Int64 = 0 #nCir + nGen 
    
