@@ -70,6 +70,102 @@ function getvalue( model::JuMP.Model, s::Symbol )
     JuMP.getvalue( JuMP.getindex( model , s ) )
 end
 
+#--- get_contingency_scenarios: Function to create arrays with contingencies scenarios based on users input ----
+function get_contingency_scenarios( case::Case )
+    
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local k::Int            # Local variable to loop over contingency scenarios
+    local nCen::Int         # Local variable to buffer the number of contingency scenarios
+    local nElements::Int    # Local variable to buffer number of elements that are in the contingency arrays
+    local n_zeros::Int      # Auxiliar variable
+    local n_ones::Int       # Auxiliar variable
+    local linha::Int        # Auxiliar variable
+
+    local ag::Array{Int}    # Local variable to buffer the array with contingency scenarios for generators
+    local al::Array{Int}    # Local variable to buffer the array with contingency scenarios for circuits
+
+    #-------------------------------
+    #--- Interpreting the inputs ---
+    #-------------------------------
+
+    #--- Checking if there is no contingency to test
+    if case.Flag_Cont == 0
+        return( 0 , ones( case.nGen , 1 ) , ones( case.nCir , 1 ) )
+    end
+
+    #--- Get the number of elements to create contingency arrays
+    if case.Flag_Cont == 1
+        nElements = case.nCir + case.nGen  
+    elseif case.Flag_Cont == 2
+        nElements = case.nGen          
+    elseif case.Flag_Cont == 3
+        nElements = case.nCir
+    end
+
+    #--- Get the number of possible combinations
+    for k in 1:case.Flag_nCont
+        nCen = binomial(nElements, k)
+    end
+
+    #-------------------------------------------------------------
+    #--- Build array of permutation vectors for each scenario  ---
+    #-------------------------------------------------------------
+
+    ag = ones( Int, nCen+1 , case.nGen )
+    al = ones( Int, nCen+1 , case.nCir )
+    
+    linha = 0
+
+    for k in 0:case.Flag_nCont  
+        
+        #- Reset contingencies to match criteria G+T, T or G
+        
+        if case.Flag_Cont == 1 # G+T
+            
+            n_zeros = k
+            n_ones  = nElements - k
+            v       = [ ones( Int , n_ones ) ; zeros( Int , n_zeros ) ]
+            per     = unique( multiset_permutations( v , nElements ) )
+
+            for ( idx , i ) in enumerate( per )
+                linha += 1
+                ag[linha,:] = i[1:case.nGen]
+                al[linha,:] = i[case.nGen+1:nElements]
+            end
+
+        elseif case.Flag_Cont == 2 # G
+
+            n_zeros = k
+            n_ones  = case.nGen - k
+            v       = [ ones( Int , n_ones ) ; zeros( Int , n_zeros ) ]
+            per     = unique(multiset_permutations(v, nElements))
+
+            for ( idx , i ) in enumerate(per)
+                linha += 1
+                ag[linha,:] = i[1:case.nGen]
+            end
+
+        elseif case.Flag_Cont == 3 # T
+
+            n_zeros = k
+            n_ones  = case.nCir - k
+            v       = [ ones( Int , n_ones ) ; zeros( Int , n_zeros )]
+            per     = unique( multiset_permutations( v , nElements ) )
+
+            for ( idx , i ) in enumerate( per )
+                linha += 1
+                al[linha,:] = i[1:case.nCir]
+            end
+
+        end
+    end
+
+    return( nCen , ag' , al' )
+end
+
 #--------------------------------------------------------
 #----           Functions to read data base          ----
 #--------------------------------------------------------
@@ -405,115 +501,10 @@ function read_data_base( path::String )
     #---- Loading buses configuration ----
     w_Log("     Buses configuration", path );
     CASE.nBus , BUSES                              = read_buses(    path );
-    
-    #---- Set number of contingency scenarios ----
-    if CASE.Flag_Cont == 0 
-        CASE.nContScen, CASE.ag, CASE.al = 0, ones(CASE.nGen, 1), ones(CASE.nCir, 1)
-    else
-        CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.Flag_nCont, CASE.Flag_Cont)
-    end
-    
-    return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
-end
-
-function read_data_base_class_format( path::String )
-
-    CASE = Case();
-
-    #---- Loading case configuration ----
-    w_Log("     SDDP configuration", path );
-    CASE.Flag_Res , CASE.Flag_Ang , CASE.Flag_Cont = read_options(  path );
-
-    #---- Loading generators configuration ----
-    w_Log("     Generators configuration", path );
-    CASE.nGen , GENCOS                             = read_gencos(   path, "INPUT_GEN.csv" );
-
-    #---- Loading loads configuration ----
-    w_Log("     Loads configuration", path );
-    CASE.nDem , DEMANDS                            = read_demands(  path, "INPUT_BUS.csv" );
-
-    #---- Loading circuits configuration ----
-    w_Log("     Circuits configuration", path );
-    CASE.nCir , CIRCUITS                           = read_circuits( path, "INPUT_LIN.csv" );
-
-    #---- Loading buses configuration ----
-    w_Log("     Buses configuration", path );
-    CASE.nBus = CASE.nDem
-    BUSES = Buses()
-    BUSES.Num     = collect(1:CASE.nBus)
-    BUSES.Name    = map(string, collect(1:CASE.nBus))
-    
-     #---- set number of contingencies
-     CASE.Flag_nCont = CASE.Flag_Res
-
-     #---- set number of contingency scenarios
-     if CASE.Flag_Cont == 0 
-        CASE.nContScen, CASE.ag, CASE.al = 0, ones(CASE.nGen, 1), ones(CASE.nCir, 1)
-    else
-
-        CASE.nContScen, CASE.ag, CASE.al = get_contingency_scenarios(CASE.nCir, CASE.nGen, CASE.Flag_nCont, CASE.Flag_Cont)
-    end
 
     return ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES )
 end
 
-#--- calculates number of contingency scenarios
-function get_contingency_scenarios( nCir::Int64 , nGen::Int64 , nCont::Int64 , criteria::Int )
-    local nCen::Int64 = 0 # number of contingency scenarios
-    local nTotal::Int64 = 0 #nCir + nGen 
-   
-    if criteria == 1
-        nTotal += nCir + nGen  
-    elseif criteria == 2
-        nTotal += nGen          
-    elseif  criteria == 3
-        nTotal += nCir  
-    end
-
-    for c in 1:nCont
-        nCen += binomial(nTotal, c)
-    end
-
-    ag = ones(Int, nCen+1,nGen)
-    al = ones(Int, nCen+1,nCir)
-    # build array of permutation vectors for each scenario  
-    linha = 0
-    for c in 0:nCont  
-        #--- reset contingencies to match criteria G+T, T or G
-        
-        if criteria == 1 # G+T
-            n_zeros = c
-            n_ones = nTotal - c
-            v = [ones(Int64, n_ones); zeros(Int64, n_zeros)]
-            per = unique(multiset_permutations(v, nTotal))
-            for (idx,i) in enumerate(per)
-                linha += 1
-                ag[linha,:] = i[1:nGen]
-                al[linha,:] = i[nGen+1:nTotal]
-            end
-        elseif criteria == 2 # G
-            n_zeros = c
-            n_ones = nGen - c
-            v = [ones(Int64, n_ones); zeros(Int64, n_zeros)]
-            per = unique(multiset_permutations(v, nTotal))
-            for (idx,i) in enumerate(per)
-                linha += 1
-                ag[linha,:] = i[1:nGen]
-            end
-        elseif criteria == 3 # T
-            n_zeros = c
-            n_ones = nCir - c
-            v = [ones(Int64, n_ones); zeros(Int64, n_zeros)]
-            per = unique(multiset_permutations(v, nTotal))
-            for (idx,i) in enumerate(per)
-                linha += 1
-                al[linha,:] = i[1:nCir]
-            end
-        end
-    end
-
-    return nCen, ag', al'
-end
 
 
 # todo parsing street
@@ -905,6 +896,9 @@ function build_dispatch( path::String , case:: Case, circuits::Circuits , genera
     #--- Creating constraint ref
     CONSTR = Constr()
 
+    #---- Set number of contingency scenarios ----
+    case.nContScen, case.ag, case.al = get_contingency_scenarios( case )
+
     #--- Creating optmization problem
     MODEL = create_model( case )
 
@@ -969,13 +963,7 @@ function dispatch( path::String, class_format::Bool )
 
     w_Log( "  Loading inputs" , PATH_CASE );
 
-    time_counter = @elapsed ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES ) = 
-    
-    if class_format
-        read_data_base_class_format(PATH_CASE)
-    else
-        read_data_base( PATH_CASE );
-    end
+    time_counter = @elapsed ( CASE , GENCOS , DEMANDS , CIRCUITS , BUSES ) = read_data_base( PATH_CASE );
 
     w_Log( "\n  Loading data took $(round(time_counter,3)) seconds\n" , PATH_CASE );
 
