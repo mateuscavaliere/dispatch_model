@@ -17,8 +17,8 @@ using Combinatorics
 #----           Defining paths          ----
 #-------------------------------------------
 
-# ROOT = joinpath(dirname(@__FILE__),"..")
-ROOT = joinpath(pwd(),"..")
+ROOT = joinpath(dirname(@__FILE__),"..")
+#ROOT = joinpath(pwd(),"..")
 
 const PATH_SRC  = joinpath( ROOT , "src" )
 
@@ -36,4 +36,4 @@ include( FUNCTIONS )
 #----        Running main module        ----
 #-------------------------------------------
 
-dispatch( PATH_SRC, true )
+dispatch( PATH_SRC )

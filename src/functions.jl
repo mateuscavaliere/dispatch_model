@@ -925,7 +925,7 @@ end
 #----           Main function          ----
 #------------------------------------------
 
-function dispatch( path::String, class_format::Bool )
+function dispatch( path::String )
     
     PATH_CASE = get_paths( path );
 
