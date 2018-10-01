@@ -11,6 +11,7 @@ mutable struct Case
     nCir::Int
     nCont::Int
     nContScen::Int
+    nStages::Int
     ag::Array{Int,2}
     al::Array{Int,2}
     Flag_Ang::Int

@@ -341,6 +341,9 @@ function read_demands( path::String , file_name::String = "demand.csv")
 
     #- Removing header
     iodata = iodata[2:end]
+    
+    #- set number of stages
+    nStages = length(split(iodata[1],",")) - 4
 
     #-----------------------
     #--- Assigning data  ---
@@ -355,7 +358,7 @@ function read_demands( path::String , file_name::String = "demand.csv")
     demands.Name    = Array{String}(nDem)
     demands.Bus     = Array{Int}(nDem)
     demands.Dem     = Array{Float64}(nDem)
-    demands.Profile = Array{Float64}(nDem,24)
+    demands.Profile = Array{Float64}(nDem,nStages)
 
     #- Looping over the read information from demand.dat 
     for d in 1:nDem
@@ -364,12 +367,12 @@ function read_demands( path::String , file_name::String = "demand.csv")
         demands.Name[d] = strip( auxdata[2] ) 
         demands.Bus[d]  = string_converter( auxdata[3]  , Int     , "Invalid entry for the demand bus $(d)") 
         demands.Dem[d]  = string_converter( auxdata[4]  , Float64 , "Invalid entry for the load of demand $(d)")
-        for t in 1:24
+        for t in 1:nStages
             demands.Profile[d,t] = string_converter( auxdata[4+t]  , Float64 , "Invalid entry for the load profile of demand $(d) in hour $(t)")
         end
     end
 
-    return( nDem , demands )
+    return( nDem , demands, nStages )
 end
 
 #--- read_circuits: Function to read circuits configuration ---
@@ -492,7 +495,7 @@ function read_data_base( path::String )
 
     #---- Loading loads configuration ----
     w_Log("     Loads configuration", path );
-    CASE.nDem , DEMANDS                            = read_demands(  path );
+    CASE.nDem , DEMANDS, CASE.nStages              = read_demands(  path );
 
     #---- Loading circuits configuration ----
     w_Log("     Circuits configuration", path );
@@ -527,17 +530,17 @@ function create_model( case::Case )
 
     myModel = Model( solver = ClpSolver( ) );
 
-    @variable(myModel, f[1:case.nCir, 1:(case.nContScen+1)] );
-    @variable(myModel, g[1:case.nGen, 1:(case.nContScen+1)] >= 0);
-    @variable(myModel, delta[1:case.nBus, 1:(case.nContScen+1)] >= 0);
+    @variable(myModel, f[1:case.nCir, 1:(case.nContScen+1), 1:case.nStages] );
+    @variable(myModel, g[1:case.nGen, 1:(case.nContScen+1), 1:case.nStages] >= 0);
+    @variable(myModel, delta[1:case.nBus, 1:(case.nContScen+1), 1:case.nStages] >= 0);
 
     if case.Flag_Ang == 1
-        @variable(myModel, theta[1:case.nBus, 1:(case.nContScen+1)]);        
+        @variable(myModel, theta[1:case.nBus, 1:(case.nContScen+1), 1:case.nStages] );        
     end
 
     if case.Flag_Res == 1
-        @variable(myModel, resup[1:case.nGen] >= 0);
-        @variable(myModel, resdown[1:case.nGen] >= 0);
+        @variable(myModel, resup[1:case.nGen, 1:case.nStages]  >= 0);
+        @variable(myModel, resdown[1:case.nGen, 1:case.nStages]  >= 0);
     end
 
     return( myModel)
@@ -551,7 +554,7 @@ function add_grid_constraint!( model::JuMP.Model , case::Case , circuits::Circui
     #---------------------------
 
     local l::Int                                        # Local variable to loop over lines
-    local f::Array{JuMP.Variable,2}                     # Local variable to represent flow decision variable
+    local f::Array{JuMP.Variable,3}                     # Local variable to represent flow decision variable
  
     #- Assigning values
     f = model[:f]
@@ -561,8 +564,8 @@ function add_grid_constraint!( model::JuMP.Model , case::Case , circuits::Circui
     #---  Adding constraints in the model  ---
     #-----------------------------------------
 
-    @constraint( model , max_circ_cap[l=1:case.nCir,c=1:(case.nContScen+1)] , f[l,c]  <= circuits.Cap[l] * al[l,c]  )
-    @constraint( model , min_circ_cap[l=1:case.nCir,c=1:(case.nContScen+1)] , -circuits.Cap[l] * al[l,c] <= f[l,c]  )
+    @constraint( model , max_circ_cap[l=1:case.nCir,c=1:(case.nContScen+1), t=1:case.nStages] , f[l,c,t]  <= circuits.Cap[l] * al[l,c]  )
+    @constraint( model , min_circ_cap[l=1:case.nCir,c=1:(case.nContScen+1), t=1:case.nStages] , -circuits.Cap[l] * al[l,c] <= f[l,c,t]  )
 
 end
 
@@ -575,11 +578,11 @@ function add_angle_constraint!( model::JuMP.Model , case::Case , circuits::Circu
 
     local l::Int                                    # Local variable to loop over lines
 
-    local f::Array{JuMP.Variable,2}                 # Local variable to represent flow decision variable of model
-    local theta::Array{JuMP.Variable,2}             # Local variable to represent angle decision variable of model
+    local f::Array{JuMP.Variable,3}                 # Local variable to represent flow decision variable of model
+    local theta::Array{JuMP.Variable,3}             # Local variable to represent angle decision variable of model
     local al::Array{Int,2}                          # Local variable to represent contingency
 
-    local angle_lag::Array{JuMP.ConstraintRef,2}    # Local variable to represent angle lag constraint reference
+    local angle_lag::Array{JuMP.ConstraintRef,3}    # Local variable to represent angle lag constraint reference
     
     #- Assigning values
 
@@ -590,7 +593,7 @@ function add_angle_constraint!( model::JuMP.Model , case::Case , circuits::Circu
     #-----------------------------------------
     #---  Adding constraints in the model  ---
     #-----------------------------------------
-    @constraint( model , angle_lag[l=1:case.nCir, c=1:(case.nContScen+1)], f[l,c] == ( al[l,c] / circuits.Reat[l] ) * ( theta[circuits.BusFrom[l],c] - theta[circuits.BusTo[l],c] ) )
+    @constraint( model , angle_lag[l=1:case.nCir, c=1:(case.nContScen+1), t=1:case.nStages], f[l,c,t] == ( al[l,c] / circuits.Reat[l] ) * ( theta[circuits.BusFrom[l],c,t] - theta[circuits.BusTo[l],c,t] ) )
 end
 
 #--- add_gen_constraint!: This function creates the maximum and minimum generation constraint ---
@@ -602,12 +605,12 @@ function add_gen_constraint!( model::JuMP.Model , case::Case , generators::Genco
 
     local u::Int                                    # Local variable to loop over generators
     
-    local g::Array{JuMP.Variable,2}                 # Local variable to represent generation decision variable
-    local resup::Array{JuMP.Variable,1}               # Local variable to represent reserve up decision variable
-    local resdown::Array{JuMP.Variable,1}             # Local variable to represent reserve down decision variable
+    local g::Array{JuMP.Variable,3}                 # Local variable to represent generation decision variable
+    local resup::Array{JuMP.Variable,2}               # Local variable to represent reserve up decision variable
+    local resdown::Array{JuMP.Variable,2}             # Local variable to represent reserve down decision variable
      
-    local max_gen::Array{JuMP.ConstraintRef,1}      # Local variable to represent maximum generation constraint reference
-    local min_gen::Array{JuMP.ConstraintRef,1}      # Local variable to represent minimum generation constraint reference
+    local max_gen::Array{JuMP.ConstraintRef,2}      # Local variable to represent maximum generation constraint reference
+    local min_gen::Array{JuMP.ConstraintRef,2}      # Local variable to represent minimum generation constraint reference
 
     #- Assigning values
 
@@ -623,11 +626,11 @@ function add_gen_constraint!( model::JuMP.Model , case::Case , generators::Genco
     #-----------------------------------------
     
     if case.Flag_Res == 1
-        @constraint(model, max_gen[u=1:case.nGen],   g[u,1] + resup[u] <= generators.PotMax[u] )
+        @constraint(model, max_gen[u=1:case.nGen, t=1:case.nStages],   g[u,1,t] + resup[u,t] <= generators.PotMax[u] )
 
-        @constraint(model, min_gen[u=1:case.nGen],  0 <=  g[u,1] - resdown[u] )
+        @constraint(model, min_gen[u=1:case.nGen, t=1:case.nStages],  0 <=  g[u,1,t] - resdown[u,t] )
     else
-        @constraint(model, max_gen[u=1:case.nGen],   g[u,1] <= generators.PotMax[u] )
+        @constraint(model, max_gen[u=1:case.nGen, t=1:case.nStages],   g[u,1,t] <= generators.PotMax[u] )
     end
 end
 
@@ -640,11 +643,11 @@ function add_reserve_constraint!( model::JuMP.Model , case::Case , generators::G
 
     local u::Int                                    # Local variable to loop over generators
     
-    local resup::Array{JuMP.Variable,1}               # Local variable to represent reserve up decision variable
-    local resdown::Array{JuMP.Variable,1}             # Local variable to represent reserve down decision variable
+    local resup::Array{JuMP.Variable,2}               # Local variable to represent reserve up decision variable
+    local resdown::Array{JuMP.Variable,2}             # Local variable to represent reserve down decision variable
     
-    local max_resup::Array{JuMP.ConstraintRef,1}      # Local variable to represent maximum reserve up constraint reference
-    local max_resdown::Array{JuMP.ConstraintRef,1}    # Local variable to represent maximum reserve down constraint reference
+    local max_resup::Array{JuMP.ConstraintRef,2}      # Local variable to represent maximum reserve up constraint reference
+    local max_resdown::Array{JuMP.ConstraintRef,2}    # Local variable to represent maximum reserve down constraint reference
 
     #- Assigning values
 
@@ -655,8 +658,8 @@ function add_reserve_constraint!( model::JuMP.Model , case::Case , generators::G
     #---  Adding constraints in the model  ---
     #-----------------------------------------
 
-    @constraint(model, max_resup[u=1:case.nGen]   ,  resup[u] <= generators.ReserveUp[u]    )
-    @constraint(model, max_resdown[u=1:case.nGen] , resdown[u] <= generators.ReserveDown[u] )
+    @constraint(model, max_resup[u=1:case.nGen, t=1:case.nStages]   ,  resup[u,t] <= generators.ReserveUp[u]    )
+    @constraint(model, max_resdown[u=1:case.nGen, t=1:case.nStages] , resdown[u,t] <= generators.ReserveDown[u] )
 end
 
 #--- add_load_balance_constraint!: This function creates the load balance constraint ---
@@ -671,11 +674,11 @@ function add_load_balance_constraint!( model::JuMP.Model , case::Case , generato
     local b::Int                                                    # Local variable to loop over buses
     local d::Int                                                    # Local variable to loop over demands
 
-    local g::Array{JuMP.Variable,2}                                 # Local variable to represent generation decision variable
-    local f::Array{JuMP.Variable,2}                                 # Local variable to represent flow decision variable
-    local delta::Array{JuMP.Variable,2}                                 # Local variable to represent deficit variable
+    local g::Array{JuMP.Variable,3}                                 # Local variable to represent generation decision variable
+    local f::Array{JuMP.Variable,3}                                 # Local variable to represent flow decision variable
+    local delta::Array{JuMP.Variable,3}                                 # Local variable to represent deficit variable
 
-    local load_balance::Array{JuMP.ConstraintRef,2}                 # Local variable to represent load balance constraint reference
+    local load_balance::Array{JuMP.ConstraintRef,3}                 # Local variable to represent load balance constraint reference
 
     #- Assigning values
 
@@ -687,11 +690,11 @@ function add_load_balance_constraint!( model::JuMP.Model , case::Case , generato
     #---  Adding constraints in the model  ---
     #-----------------------------------------
 
-    @constraint(model, load_balance[b=1:case.nBus, c=1:(case.nContScen+1)], 
-    + sum(g[u,c] for u in 1:case.nGen if generators.Bus[u] == b) 
-    + sum(f[l,c] for l in 1:case.nCir if circuits.BusTo[l] == b)
-    - sum(f[l,c] for l in 1:case.nCir if circuits.BusFrom[l] == b)
-    ==  sum(demands.Dem[d] for d in 1:case.nDem if demands.Bus[d] == b) 
+    @constraint(model, load_balance[b=1:case.nBus, c=1:(case.nContScen+1), t=1:case.nStages], 
+    + sum(g[u,c,t] for u in 1:case.nGen if generators.Bus[u] == b) 
+    + sum(f[l,c,t] for l in 1:case.nCir if circuits.BusTo[l] == b)
+    - sum(f[l,c,t] for l in 1:case.nCir if circuits.BusFrom[l] == b)
+    ==  sum(demands.Dem[d] * demands.Profile[d,t] for d in 1:case.nDem if demands.Bus[d] == b) 
     )
     
 end
@@ -705,9 +708,9 @@ function add_contingency_constraint!( model::JuMP.Model , case::Case , generator
 
     local u::Int                                    # Local variable to loop over generators
     
-    local g::Array{JuMP.Variable,2}                 # Local variable to represent generation decision variable
-    local resup::Array{JuMP.Variable,1}             # Local variable to represent reserve up decision variable
-    local resdown::Array{JuMP.Variable,1}           # Local variable to represent reserve down decision variable
+    local g::Array{JuMP.Variable,3}                 # Local variable to represent generation decision variable
+    local resup::Array{JuMP.Variable,2}             # Local variable to represent reserve up decision variable
+    local resdown::Array{JuMP.Variable,2}           # Local variable to represent reserve down decision variable
     local ag::Array{Int,2}                          # Local variable to represent contingency variable
     
     #- Assigning values
@@ -723,9 +726,9 @@ function add_contingency_constraint!( model::JuMP.Model , case::Case , generator
     #-----------------------------------------
     #---  Adding constraints in the model  ---
     #-----------------------------------------
-    @constraint(model, cont_max_gen[u=1:case.nGen,c=2:(case.nContScen+1)],   g[u,c] <= (g[u,1] + resup[u])*ag[u,c])
+    @constraint(model, cont_max_gen[u=1:case.nGen,c=2:(case.nContScen+1), t=1:case.nStages],   g[u,c,t] <= (g[u,1,t] + resup[u,t])*ag[u,c])
     
-    @constraint(model, cont_min_gen[u=1:case.nGen,c=2:(case.nContScen+1)], (g[u,1] - resdown[u])*ag[u,c] <= g[u,c]) 
+    @constraint(model, cont_min_gen[u=1:case.nGen,c=2:(case.nContScen+1), t=1:case.nStages], (g[u,1,t] - resdown[u,t])*ag[u,c] <= g[u,c,t]) 
 end
 
 #--- add_obj_fun!: This function creates and append the objective function to the model ---
@@ -737,9 +740,9 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
 
     local u::Int                                                    # Local variable to loop over generators
     
-    local g::Array{JuMP.Variable,2}                                 # Local variable to represent generation decision variable
-    local resup::Array{JuMP.Variable,1}                               # Local variable to represent reserve up decision variable
-    local resdown::Array{JuMP.Variable,1}                             # Local variable to represent reserve down decision variable
+    local g::Array{JuMP.Variable,3}                                 # Local variable to represent generation decision variable
+    local resup::Array{JuMP.Variable,2}                               # Local variable to represent reserve up decision variable
+    local resdown::Array{JuMP.Variable,2}                             # Local variable to represent reserve down decision variable
 
     local obj_fun::JuMP.GenericAffExpr{Float64,JuMP.Variable}       # Local variable to represent objective function
     local syst_cost::JuMP.GenericAffExpr{Float64,JuMP.Variable}     # Local variable to represent system total cost
@@ -761,13 +764,13 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
 
     if case.Flag_Res == 1
         @objective(  model , Min       , 
-        + sum(g[u,1] * generators.CVU[u] for u in 1:case.nGen)
-        + sum(resup[u] * generators.ReserveUpCost[u] for u in 1:case.nGen)
-        + sum(resdown[u] * generators.ReserveDownCost[u] for u in 1:case.nGen)
+        + sum(g[u,1,t] * generators.CVU[u] for u in 1:case.nGen, t  in 1:case.nStages)
+        + sum(resup[u,t] * generators.ReserveUpCost[u] for u in 1:case.nGen, t  in 1:case.nStages)
+        + sum(resdown[u,t] * generators.ReserveDownCost[u] for u in 1:case.nGen, t  in 1:case.nStages)
         )
     else
         @objective(  model , Min       , 
-        + sum(g[u,1] * generators.CVU[u] for u in 1:case.nGen)
+        + sum(g[u,1,t] * generators.CVU[u] for u in 1:case.nGen, t  in 1:case.nStages)
         )
     end
 
@@ -822,19 +825,19 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         w_Log("\n     Optimal solution found!\n" , path )
 
         for b in 1:case.nBus
-            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(round(sum(prices[b,:]),2)) R\$/MWh" , path )
+            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(round(sum(prices[b,:,:]),2)) R\$/MWh" , path )
         end
 
         w_Log( " " , path )
 
         for u in 1:case.nGen
-            w_Log("     Optimal generation of $(generators.Name[u]): $(round(generation[u,1],2)) MWh" , path )
+            w_Log("     Optimal generation of $(generators.Name[u]): $(round(generation[u,1,:],2)) MWh" , path )
         end
 
         w_Log( " " , path )
 
         for l in 1:case.nCir
-            w_Log("     Optimal flow in line $(circuits.Name[l]): $(round(cir_flow[l,1],2)) MW" , path )
+            w_Log("     Optimal flow in line $(circuits.Name[l]): $(round(cir_flow[l,1,:],2)) MW" , path )
         end
 
         if case.Flag_Res == 1
@@ -842,13 +845,13 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             w_Log( " " , path )
 
             for u in 1:case.nGen
-                w_Log("     Optimal Reserve Up of $(generators.Name[u]): $(round(res_up_gen[u],2)) MWh" , path )
+                w_Log("     Optimal Reserve Up of $(generators.Name[u]): $(round(res_up_gen[u,:],2)) MWh" , path )
             end
 
             w_Log( " " , path )
 
             for u in 1:case.nGen
-                w_Log("     Optimal Reserve Down of $(generators.Name[u]): $(round(res_down_gen[u],2)) MWh" , path )
+                w_Log("     Optimal Reserve Down of $(generators.Name[u]): $(round(res_down_gen[u,:],2)) MWh" , path )
             end
 
         end
@@ -858,7 +861,7 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             w_Log( " " , path )
 
             for b in 1:case.nBus
-                w_Log("     Optimal bus angle $(buses.Name[b]): $(round(bus_ang[b,1],2)) grad" , path )
+                w_Log("     Optimal bus angle $(buses.Name[b]): $(round(bus_ang[b,1,:],2)) grad" , path )
             end
         end
     
