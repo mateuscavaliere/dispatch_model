@@ -803,13 +803,10 @@ function add_ramping_constraint( model::JuMP.Model , case::Case , generators::Ge
                                                         + start_up[u] * (commit[u,t] - commit[u,t-1])
                                                         + generators.Pot[u] * (1 - commit[u,t]))
     # shutdown ramp rate
-    @constraints(model, shutdown_cstr[u=1:case.nGen,t=1:(case.nStages-1)], pot_disp[p,t] <= generators.Pot[p] * commit[p,t+1] 
-    + shut_down[u] * (commit[u,t] - commit[u,t+1]))
+    @constraints(m, shutdown_cstr[u=1:case.nGen,t=1:(case.nStages-1)], pot_disp[p,1,t] <= generators.Pot[p] * commit[p,1,t+1] + shutdown[u] * (commit[u,1,t] - commit[u,1,t+1]))
 
     # ramp down 
-    @constraints(model, ramp_down_cstr[u=1:case.nGen, t=1:case.nStages], pot_disp[u,t-1] - pot_disp[u,t] <= ramp_down[u] * commit[u,t]
-                                                        + shut_down[u] * (commit[u,t-1] + commit[u,t])
-                                                        + generators.Pot[u] * (1 - commit[u,t-1]))
+    @constraints(m, ramp_down_cstr[u=1:case.nGen, t=1:case.nStages], pot_disp[u,1,t-1] - pot_disp[u,1 ,t] <= ramp_down[u] * commit[u,1,t] + shutdown[u] * (commit[u,1,t-1] + commit[u,1,t]) + generators.Pot[u] * (1 - commit[u,1,t-1]))
 end
 
 function add_updowntime_constraint( model::JuMP.Model , case::Case , generators::Gencos )
@@ -831,24 +828,42 @@ function add_updowntime_constraint( model::JuMP.Model , case::Case , generators:
     nMon = minimum.(case.nStages*ones(case.nGen),(generators.UpTime-generators.initialOn).*generators.initialCommit)
     nMoff = minimum.(case.nStages*ones(case.nGen),(generators.DownTime-generators.initialOff).*(1-generators.initialCommit))
 
-    #maximum Uptime
-    @constraints(model, must_On[u=1:case.nGen, c=1:case.nScen], sum(1-commit[u,t] for t in 1:nMon) == 0 )
-    #testar se isso funciona tup=nMR+1:nStages-gencos.UpTime[p]
-    #nMon+1:nStages-gencos.UpTime[p]+1
-    minuptime_cstr1 = @ConstraintRef()
-    for u in 1:nGen, n in nMon+1:nStages-generators.UpTime[u]+1
-        minuptime_cstr1[] = sum(commit[u,n] for n=tup:(t+generators.UpTime[u]-1)) >=  generators.UpTime[u]*(commit[u,t])-commit[u,t-1]
+    # maximum Uptime on initial periods
+    @constraints(model, must_On[u=1:case.nGen], sum(1-commit[u,1,t] for t in 1:nMon[u]) == 0 )
+
+    # define references for loop
+    @constraintref minuptime_cstr1[1:case.nGen, 1:case.nStages]  # (nMon+1):(case.nStages-generators.UpTime[p]+1)
+    @constraintref minuptime_cstr2[1:case.nGen, 1:case.nStages]  # (nMon+1):(case.nStages-generators.UpTime[p]+1)
+    @constraintref mindowntime_cstr1[1:case.nGen, 1:case.nStages]
+    @constraintref mindowntime_cstr2[1:case.nGen, 1:case.nStages]
+
+    for u in 1:case.nGen
+        # minimum uptime in middle periods
+        for (i,k) in enumerate((nMon[u]+1):(case.nStages-generators.UpTime[u]+1))
+            minuptime_cstr1[u,i] =  @constraint(model, sum(commit[u,1,n] for n=k:(k+generators.UpTime[u]-1)) >=  generators.UpTime[u]*(commit[u,1,k])-commit[u,1,k-1])
+        end
+        
+        # minimum uptime in final periods
+        for (i,k) in enumerate((nStages-generators.UpTime[u]+2):(case.nStages))
+            minuptime_cstr2[u,i] = @constraints(model, sum(commit[u,1,n]-(commit[u,1,k]-commit[u,1,k-1]) for n=k:case.nStage) >= 0)
+        end
     end
+
+    #Minimum downtime on initial periods
+    @constraints(model, must_Off[u=1:case.nGen], sum(1-commit[u,1,t] for t in 1:nMoff[u]) == 0 )
     
-    @constraints(model, minuptime_cstr2[u=1:case.nGen, c=1:case.nScen, tup=case.nStages-generators.UpTime[u]+2:generators.nStages], sum(commit[u,n]-(commit[u,tup]-commit[u,tup-1]) for n=tup:case.nStage) >= 0)
-
-
-    #Minimum Up time
-    @constraints(model, must_Off[u=1:case.nGen, c=1:case.nScen, tdown=1:nMoff], sum(1-commit[u,tdown]) == 0 )
     #testar se isso funciona tup=nMR+1:nStages-gencos.UpTime[p]
-    @constraints(model, mindowntime_cstr1[u=1:case.nGen, c=1:case.nScen, tdown = nMoff+1:case.nStages-generators.DownTime[u]+1], sum(commit[u,n] for n=tup:tup+generators.DownTime[u]-1) >=  generators.DownTime[u]*(commit[u,tup-1])-commit[u,tup])
-    @constraints(model, mindowntime_cstr2[u=1:case.nGen, c=1:case.nScen, tdown = case.nStages-generators.DownTime[u]+2:case.nStages], sum(1-commit[u,n]-(commit[u,tup-1]-commit[u,tup]) for n=tup:case.nStage) >= 0)
-
+    for u in 1:case.nGen
+        # minimum downtime in middle periods
+        for (i,k) in enumerate((nMoff[u]+1):(case.nStages-generators.DownTime[u]+1))
+            mindowntime_cstr1[u,i] = @constraints(model, sum(1-commit[u,1,n] for n=k:(k+generators.DownTime[u]-1)) >=  generators.DownTime[u] * (commit[u,1,k-1]) - commit[u,1,k])
+        end
+        
+        # minimum downtime in final periods
+        for (i,k) in enumerate((case.nStages-generators.DownTime[u]+2):(case.nStages))
+            mindowntime_cstr2 = @constraints(model, sum(1-commit[u,1,n]-(commit[u,1,k-1]-commit[u,1,k]) for n=k:nStage) >= 0)
+        end
+    end
 end
 
 function add_startupcost_shutdowncost_constraint( model::JuMP.Model , case::Case , generators::Gencos)
