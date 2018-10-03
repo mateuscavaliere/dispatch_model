@@ -316,6 +316,92 @@ function read_gencos( path::String , file_name::String = "gencos.csv")
 
 end
 
+function read_init_commit( path::String , case::Case , file_name::String = "init_commit.csv")
+
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local iofile::IOStream                      # Local variable to buffer connection to gencos.dat file
+    local iodata::Array{String,1}               # Local variable to buffer information from read gencos.dat file
+    local auxdata::Array{SubString{String},1}   # Local variable to buffer information after parsing
+    local u::Int                                # Local variable to loop over gencos 
+    local nGen::Int                             # Local variable to buffer the number of gencos
+    local initCommit::Array{Int}                # Local variable to buffer the initial commit stage of each generator
+    local initGen::Array{Float64}               # Local variable to buffer the initial generation of each generator
+    local initOffTime::Array{Int}               # Local variable to buffer the off-line time of each generator in t = 0
+    local initOnTime::Array{Int}                # Local variable to buffer the on-line time of each generator in t = 0
+
+    #---------------------------------
+    #--- Reading file (gencos.dat) ---
+    #---------------------------------
+    iofile = open( joinpath( path , file_name ) , "r" )
+    iodata = readlines( iofile );
+    Base.close( iofile )
+
+    #- Removing header
+    iodata = iodata[2:end]
+
+    #-----------------------
+    #--- Assigning data  ---
+    #-----------------------
+
+    #- Get the number of simulated gencos
+    nGen = length( iodata )
+
+    #- Check input consistency
+
+    if case.nGen != nGen
+        w_Log("     ERROR: Number of generator in init_commit.csv is different from gencos.csv", path );
+        exit()
+    end
+
+    #- Create struct to buffer gencos information
+
+    initCommit  = Array{Int}(nGen)
+    initGen     = Array{Float64}(nGen)
+    initOffTime = Array{Int}(nGen)
+    initOnTime  = Array{Int}(nGen)
+
+    #- Looping over the read information from init_commit.csv 
+
+    for u in 1:nGen
+        auxdata         = split( iodata[u] , "," )
+        initCommit[u]   = string_converter( auxdata[3]  , Int     , "Invalid entry for the initial commit stage of genco $(u) ")
+        initGen[u]      = string_converter( auxdata[4]  , Float64 , "Invalid entry for the intial generation of genco $(u) ")
+        initOffTime[u]  = string_converter( auxdata[5]  , Int     , "Invalid entry for the off-line time in t = 0 of genco $(u)")
+        initOnTime[u]   = string_converter( auxdata[6]  , Int     , "Invalid entry for the on-line time in t = 0 of genco $(u) ")        
+    end
+
+    #- Check input consistency
+
+    for u in 1:nGen
+
+        if (initCommit[u] != 0) && (initCommit[u] != 1)
+            w_Log("     ERROR: Invalid commit value for the generator $(u) in t = 0", path );
+            exit()
+        end
+
+        if (initGen[u] < 0)
+            w_Log("     ERROR: Invalid generation value for the generator $(u) in t = 0", path );
+            exit()
+        end
+
+        if (initOffTime[u] < 0)
+            w_Log("     ERROR: Invalid off-line time in t = 0 of genco $(u)", path );
+            exit()
+        end
+
+        if (initOnTime[u] < 0)
+            w_Log("     ERROR: Invalid off-line time in t = 0 of genco $(u)", path );
+            exit()
+        end
+    end
+
+    return( initCommit , initGen , initOffTime , initOnTime )
+
+end
+
 #--- read_demands: Function to read demands configuration ---
 function read_demands( path::String , file_name::String = "demand.csv")
 
@@ -491,7 +577,8 @@ function read_data_base( path::String )
 
     #---- Loading generators configuration ----
     w_Log("     Generators configuration", path );
-    CASE.nGen , GENCOS                             = read_gencos(   path );
+    CASE.nGen , GENCOS                                                          = read_gencos(      path        );
+    GENCOS.InitCommit , GENCOS.InitGen , GENCOS.InitOffTime , GENCOS.InitOnTime = read_init_commit( path , CASE );
 
     #---- Loading loads configuration ----
     w_Log("     Loads configuration", path );
@@ -961,7 +1048,7 @@ function dispatch( path::String )
 
     w_Log( "  Solving dispatch problem" , PATH_CASE );
 
-    time_counter = @elapsed build_dispatch( PATH_CASE , CASE , CIRCUITS , GENCOS , DEMANDS , BUSES );
+    #time_counter = @elapsed build_dispatch( PATH_CASE , CASE , CIRCUITS , GENCOS , DEMANDS , BUSES );
 
     w_Log( "\n  Optmization process took $(round(time_counter,3)) seconds" , PATH_CASE );
 
