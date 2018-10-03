@@ -884,7 +884,15 @@ function add_ramping_constraint( model::JuMP.Model , case::Case , generators::Ge
 
     #Estamos levando em consideração que o estágio inicial é o estágio 1, ele pode começar com qualquer potência
     #temos que considerar o estágio inicial
-    @constraint(model, ramp_up_cstr[u=1:case.nGen, t=2:case.nStages], pot_disp[u,t] <= g[u,t-1] 
+    
+    # primeiro estagio
+    @constraint(model, ramp_up_cstr_1[u=1:case.nGen], pot_disp[u,t] <= generators.InitGen[u] 
+                                                        + ramp_up[u] * generators.InitCommit[u]
+                                                        + start_up[u] * (commit[u,1] - generators.InitCommit[u])
+                                                        + generators.Pot[u] * (1 - commit[u,1] ))
+
+    # demais estagios
+    @constraint(model, ramp_up_cstr_2[u=1:case.nGen, t=2:case.nStages], pot_disp[u,t] <= g[u,t-1] 
                                                         + ramp_up[u] * commit[u,t-1]
                                                         + start_up[u] * (commit[u,t] - commit[u,t-1])
                                                         + generators.Pot[u] * (1 - commit[u,t]))
@@ -910,9 +918,9 @@ function add_updowntime_constraint( model::JuMP.Model , case::Case , generators:
     
 
     #Pedir para o Mateus adicionar a entrada gencos.initialCommit, gencos.initialOn e gencos.initialOff
-    #podemos testar com min
-    nMon = minimum.(case.nStages*ones(case.nGen),(generators.UpTime-generators.initialOn).*generators.initialCommit)
-    nMoff = minimum.(case.nStages*ones(case.nGen),(generators.DownTime-generators.initialOff).*(1-generators.initialCommit))
+    # GENCOS.InitCommit , GENCOS.InitGen , GENCOS.InitOffTime , GENCOS.InitOnTime
+    nMon = minimum.(case.nStages*ones(case.nGen),(generators.UpTime-generators.InitOnTime).*generators.InitCommit)
+    nMoff = minimum.(case.nStages*ones(case.nGen),(generators.DownTime-generators.InitOffTime).*(1-generators.initialCommit))
 
     # maximum Uptime on initial periods
     @constraint(model, must_On[u=1:case.nGen], sum(1-commit[u,t] for t in 1:nMon[u]) == 0 )
@@ -936,9 +944,8 @@ function add_updowntime_constraint( model::JuMP.Model , case::Case , generators:
     end
 
     #Minimum downtime on initial periods
-    @constraint(model, must_Off[u=1:case.nGen], sum(1-commit[u,1,t] for t in 1:nMoff[u]) == 0 )
+    @constraint(model, must_Off[u=1:case.nGen], sum(1-commit[u,t] for t in 1:nMoff[u]) == 0 )
     
-    #testar se isso funciona tup=nMR+1:nStages-gencos.UpTime[p]
     for u in 1:case.nGen
         # minimum downtime in middle periods
         for (i,k) in enumerate((nMoff[u]+1):(case.nStages-generators.DownTime[u]+1))
