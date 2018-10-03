@@ -54,6 +54,11 @@ mutable struct Gencos
     ReserveUpCost::Array{Float64}
     ReserveDownCost::Array{Float64}
 
+    InitCommit::Array{Int}
+    InitGen::Array{Float64}
+    InitOffTime::Array{Int}
+    InitOnTime::Array{Int}
+
     Gencos() = new();
 end
 
