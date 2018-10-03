@@ -10,7 +10,7 @@
 #-----------------------------------------
 
 using JuMP
-using Clp
+using Cbc
 using Combinatorics
 
 #-------------------------------------------
@@ -18,7 +18,7 @@ using Combinatorics
 #-------------------------------------------
 
 ROOT = joinpath(dirname(@__FILE__),"..")
-#ROOT = joinpath(pwd(),"..")
+# ROOT = joinpath(pwd(),"..")
 
 const PATH_SRC  = joinpath( ROOT , "src" )
 
