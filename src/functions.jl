@@ -1088,7 +1088,7 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         w_Log( " " , path )
 
         for u in 1:case.nGen
-            w_Log("     Optimal generation of $(generators.Name[u]): $(round(generation[u,1,:],2)) MWh" , path )
+            w_Log("     Optimal generation of $(generators.Name[u]): $(round.(generation[u,1,:],2)) MWh" , path )
         end
 
         w_Log( " " , path )
@@ -1218,7 +1218,7 @@ function dispatch( path::String )
 
     w_Log( "  Solving dispatch problem" , PATH_CASE );
 
-    #time_counter = @elapsed build_dispatch( PATH_CASE , CASE , CIRCUITS , GENCOS , DEMANDS , BUSES );
+    time_counter = @elapsed build_dispatch( PATH_CASE , CASE , CIRCUITS , GENCOS , DEMANDS , BUSES );
 
     w_Log( "\n  Optmization process took $(round(time_counter,3)) seconds" , PATH_CASE );
 
