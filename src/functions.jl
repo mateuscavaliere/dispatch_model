@@ -1216,6 +1216,12 @@ function build_dispatch( path::String , case:: Case, circuits::Circuits , genera
     if case.Flag_Cont!=0
         add_contingency_constraint!(  MODEL , case , generators)
     end
+
+    add_unit_commitment( MODEL , case , generators )
+    add_ramping_constraint( MODEL , case , generators )
+    add_updowntime_constraint( MODEL , case , generators )
+    add_startupcost_shutdowncost_constraint( MODEL , case , generators)
+
     #- Add objetive function
     add_obj_fun!( MODEL , case , generators )
 
