@@ -36,4 +36,4 @@ include( FUNCTIONS )
 #----        Running main module        ----
 #-------------------------------------------
 
-dispatch( PATH_SRC )
+main( PATH_SRC )
