@@ -863,10 +863,10 @@ function add_ramping_constraint( model::JuMP.Model , case::Case , generators::Ge
     local u::Int                                    # Local variable to loop over generators
 
     local g::Array{JuMP.Variable,3}                 # Local variable to represent generation decision variable
-    local ramp_up::Array{Float64,2}                 # Local variable to represent ramp up generation variable
-    local ramp_down::Array{Float64,2}               # Local variable to represent ramp down generation variable
-    local start_up::Array{Float64,2}                # Local variable to represent start up ramp variable
-    local shutdown::Array{Float64,2}                # Local variable to represent shutdown ramp variable
+    local ramp_up::Array{Float64,1}                 # Local variable to represent ramp up generation variable
+    local ramp_down::Array{Float64,1}               # Local variable to represent ramp down generation variable
+    local start_up::Array{Float64,1}                # Local variable to represent start up ramp variable
+    local shutdown::Array{Float64,1}                # Local variable to represent shutdown ramp variable
     
     #- Assigning values
     g = model[:g]
