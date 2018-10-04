@@ -18,6 +18,7 @@ function read_options( path::String , file_name::String = "dispatch.dat" )
     local flag_ang::Int                     # Local variable to buffer angular diff option
     local flag_cont::Int                    # Local variable to buffer contingency option
     local flag_cont_crit::Int               # Local variable to buffer contingency criteria option
+    local nStages::Int                      # Local variable to buffer the number of stages
 
     #---------------------------------
     #--- Reading file (gencos.dat) ---
@@ -35,6 +36,7 @@ function read_options( path::String , file_name::String = "dispatch.dat" )
     flag_res       = string_converter( iodata[2][27:30]  , Int , "Invalid entry for reserve option")
     flag_cont      = string_converter( iodata[3][27:30]  , Int , "Invalid entry for contingency option")
     flag_cont_crit = string_converter( iodata[4][27:30]  , Int , "Invalid entry for contingency criteria option")
+    nStages        = string_converter( iodata[5][27:30]  , Int , "Invalid entry for the number of stages")
 
     #--- Checking user input consistency
 
@@ -53,10 +55,16 @@ function read_options( path::String , file_name::String = "dispatch.dat" )
         exit()
     end
 
-    return( flag_res , flag_ang , flag_cont, flag_cont_crit )
+    #- Number of stages
+    if nStages < 1 
+        w_Log("     ERROR: The number of stages must be at least 1 ($(nStages)) ", path );
+        exit()
+    end
+
+    return( flag_res , flag_ang , flag_cont, flag_cont_crit , nStages )
 end 
 
-function read_gencos( path::String , file_name::String = "gencos.csv")
+function read_gencos( path::String , case::Case , buses::Buses , file_name::String = "gencos.csv")
 
     #---------------------------
     #---  Defining variables ---
@@ -159,6 +167,11 @@ function read_gencos( path::String , file_name::String = "gencos.csv")
         #- Generator bus
         if gencos.Bus[u] < 1
             w_Log("     ERROR: Invalid number of generators bus $(u) (must be greater than 1) ", path );
+            exit()
+        end
+
+        if !(gencos.Bus[u] in buses.Num)
+            w_Log("     ERROR: The bus of generator $(d) is not a valid ($(demands.Bus[d]))", path );
             exit()
         end
 
@@ -319,9 +332,27 @@ function read_gencos( path::String , file_name::String = "gencos.csv")
             exit()
         end
 
-        # TO DO
-        gencos.UpTime[u]          = string_converter( auxdata[14]  , Int     , "Invalid entry for the Up Time of genco $(u) ")
-        gencos.DownTime[u]        = string_converter( auxdata[15]  , Int     , "Invalid entry for the Down Time of genco $(u) ")
+        #- Invalid entry for up time
+        if gencos.UpTime[u] < 1
+            w_Log("     ERROR: Up time of generator $(u) must be grater than 1 ($(gencos.UpTime[u]) h)", path );
+            exit()
+        end
+
+        if gencos.UpTime[u] > case.nStages
+            w_Log("     WARNING: Up time of generator $(u) is greater than the number of stages of this case ($(gencos.UpTime[u]) h > $(case.nStages) h)", path );
+            gencos.UpTime[u] = case.nStages
+        end
+
+        #- Invalid entry for down time
+        if gencos.DownTime[u] < 1
+            w_Log("     ERROR: Down time of generator $(u) must be grater than 1 ($(gencos.DownTime[u]) h)", path );
+            exit()
+        end
+
+        if gencos.DownTime[u] > case.nStages
+            w_Log("     WARNING: Down time of generator $(u) is greater than the number of stages of this case ($(gencos.DownTime[u]) h > $(case.nStages) h)", path );
+            gencos.DownTime[u] = case.nStages
+        end
         
     end
 
@@ -415,7 +446,7 @@ function read_init_commit( path::String , case::Case , file_name::String = "init
 end
 
 #--- read_demands: Function to read demands configuration ---
-function read_demands( path::String , file_name::String = "demand.csv")
+function read_demands( path::String , case::Case , buses::Buses , file_name::String = "demand.csv")
 
     #---------------------------
     #---  Defining variables ---
@@ -440,8 +471,14 @@ function read_demands( path::String , file_name::String = "demand.csv")
     #- Removing header
     iodata = iodata[2:end]
     
-    #- set number of stages
+    #- Get number of demand stages
     nStages = length(split(iodata[1],",")) - 4
+
+    #- Check input
+    if nStages != case.nStages
+        w_Log("     ERROR: The number of demand stages must be equal to the number of stages of the case", path );
+        exit()
+    end
 
     #-----------------------
     #--- Assigning data  ---
@@ -470,11 +507,47 @@ function read_demands( path::String , file_name::String = "demand.csv")
         end
     end
 
+    #- Checking inputs consistency
+
+    for d in 1:nDem
+
+        #- Demand number
+        if demands.Num[d] < 1
+            w_Log("     ERROR: The number of demand $(d) must be at least 1 ($(demands.Num[d]))", path );
+            exit()
+        end
+
+        #- Demand bus
+        if demands.Bus[d] < 1
+            w_Log("     ERROR: The number of bus of demand $(d) must be at least 1 ($(demands.Bus[d]))", path );
+            exit()
+        end
+
+        if !(demands.Bus[d] in buses.Num)
+            w_Log("     ERROR: The bus of demand $(d) is not a valid ($(demands.Bus[d]))", path );
+            exit()
+        end
+
+        #- Load of demand
+        if demands.Dem[d] < 0
+            w_Log("     ERROR: Load of demand $(d) must be greater than 0 ($(demands.Dem[d]) MW )", path );
+            exit()
+        end
+
+        #- Demand profile
+        for t in 1:nStages
+            if demands.Profile[d,t] < 0
+                w_Log("     ERROR: Load of demand $(d) at time $(t) must be greater than 0 ($(demands.Profile[d,t]) MW)", path );
+                exit()
+            end
+        end
+    end
+
     return( nDem , demands, nStages )
 end
 
 #--- read_circuits: Function to read circuits configuration ---
-function read_circuits( path::String , file_name::String = "circs.csv")
+function read_circuits( path::String , buses::Buses , file_name::String = "circs.csv")
 
     #---------------------------
     #---  Defining variables ---
@@ -524,6 +597,44 @@ function read_circuits( path::String , file_name::String = "circs.csv")
         circuits.Reat[l]     = string_converter( auxdata[4]  , Float64 , "Invalid entry for the CIRCUIT reactance" )
         circuits.BusFrom[l]  = string_converter( auxdata[5]  , Int     , "Invalid entry for the CIRCUIT bus from" )
         circuits.BusTo[l]    = string_converter( auxdata[6]  , Int     , "Invalid entry for the CIRCUIT bus to" )
+    end
+
+    #- Checking inputs consistency
+
+    for l in 1:nCir
+
+        #- Circuit number
+        if circuits.Num[l] < 1
+            w_Log("     ERROR: The number of circuit $(l) must be at least 1 ($(circuits.Num[l]))", path );
+            exit()
+        end
+
+        #- Circuit capacity
+        if circuits.Cap[l] < 1
+            w_Log("     ERROR: The capacity of circuit $(l) must be greater than 0 ($(circuits.Cap[l]) MW)", path );
+            exit()
+        end
+
+        #- Circuit reactance
+        if circuits.Reat[l] < 1
+            w_Log("     ERROR: The reactance of circuit $(l) must be greater than 0 ($(circuits.Reat[l]) p.u.)", path );
+            exit()
+        end
+
+        #- Circuit bus from
+
+        if !(circuits.BusFrom[l] in buses.Num)
+            w_Log("     ERROR: The bus from of circuit $(l) is not a valid ($(circuits.BusFrom[l]))", path );
+            exit()
+        end
+
+        #- Circuit bus to
+
+        if !(circuits.BusTo[l] in buses.Num)
+            w_Log("     ERROR: The bus to of circuit $(l) is not a valid ($(circuits.BusTo[l]))", path );
+            exit()
+        end
+
     end
 
     return( nCir , circuits )
