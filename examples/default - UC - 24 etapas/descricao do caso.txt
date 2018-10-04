@@ -1,0 +1,2 @@
+este caso testa apenas o commitment.
+as usinas comecam comitadas gerando 50% de modo que possam escolher a sua geracao na proxima etapa
