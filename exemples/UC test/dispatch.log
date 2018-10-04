@@ -1,0 +1,24 @@
+
+  #-----------------------------------------#
+  #              DISPATCH MODEL             #
+  #-----------------------------------------#
+
+  Execution date: 03-Oct-2018 00:11
+  Directory:      D:\Repositories\dispatch_model\exemples\UC test\ 
+
+  Loading inputs
+     Case configuration
+     Generators configuration
+     Loads configuration
+     Circuits configuration
+     Buses configuration
+
+  Loading data took 0.033 seconds
+
+  Solving dispatch problem
+
+     No solution found!
+
+     This problem is Infeasible!
+
+  Optmization process took 1.646 seconds

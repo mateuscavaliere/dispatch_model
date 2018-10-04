@@ -1,0 +1,14 @@
+ NUM ....Name.... .Bus ..Load..
+   1 DEMAND          2    0.217
+   2 DEMAND          3    0.942
+   3 DEMAND          4    0.478
+   4 DEMAND          5    0.076
+   5 DEMAND          6    0.112
+   6 DEMAND          7    0.000
+   7 DEMAND          8    0.000
+   8 DEMAND          9    0.295
+   9 DEMAND         10    0.09 
+  10 DEMAND         11    0.035
+  11 DEMAND         12    0.061
+  12 DEMAND         13    0.135
+  13 DEMAND         14    0.149

@@ -1,0 +1,4 @@
+DIFERENCA ANGULAR            1    (0 -> NAO | 1 -> SIM)
+RESERVA GERACAO              0    (0 -> NAO | 1 -> SIM)
+CONTINGENCIA                 0    (0 -> NAO CONSIDERA | 1 -> N-1 G&T | 2 -> N-1 G | 3 -> N-1 T)
+CRITERIO                     1   (N-?)

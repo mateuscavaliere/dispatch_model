@@ -1,0 +1,12 @@
+
+  #-----------------------------------------#
+  #              DISPATCH MODEL             #
+  #-----------------------------------------#
+
+  Execution date: 03-Oct-2018 20:54
+  Directory:      D:\Repositories\dispatch_model\examples\UC test\ 
+
+  Loading inputs
+     Case configuration
+     Generators configuration
+     ERROR: Number of generator in init_commit.csv is different from gencos.csv

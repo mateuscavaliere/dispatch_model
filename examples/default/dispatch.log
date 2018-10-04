@@ -1,0 +1,20 @@
+
+  #-----------------------------------------#
+  #              DISPATCH MODEL             #
+  #-----------------------------------------#
+
+  Execution date: 03-Oct-2018 20:59
+  Directory:      D:\Repositories\dispatch_model\examples\default\ 
+
+  Loading inputs
+     Case configuration
+     Generators configuration
+     Loads configuration
+     Circuits configuration
+     Buses configuration
+
+  Loading data took 0.065 seconds
+
+  Solving dispatch problem
+
+  Optmization process took 0.065 seconds

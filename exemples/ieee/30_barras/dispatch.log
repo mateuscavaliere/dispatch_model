@@ -1,0 +1,113 @@
+
+  #-----------------------------------------#
+  #              DISPATCH MODEL             #
+  #-----------------------------------------#
+
+  Execution date: 27-Sep-2018 19:48
+  Directory:      D:\Repositories\dispatch_model\exemples\ieee\14_barras\contingencia_G\ 
+
+  Loading inputs
+     SDDP configuration
+     Generators configuration
+     Loads configuration
+     Circuits configuration
+     Buses configuration
+
+  Loading data took 0.023 seconds
+
+  Solving dispatch problem
+
+     Optimal solution found!
+
+     Pre-contingency Marginal cost for the bus BUS 1: 0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 2: 0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 3: 0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 4: 0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 5: 0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 6: 0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 7: 0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 8: 0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 9: 0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 10: -0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 11: 0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 12: -0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 13: 0.0 R$/MWh
+     Pre-contingency Marginal cost for the bus BUS 14: 0.0 R$/MWh
+     Secured energy price for the bus BUS 1: 100.0 R$/MWh
+     Secured energy price for the bus BUS 2: 100.0 R$/MWh
+     Secured energy price for the bus BUS 3: 100.0 R$/MWh
+     Secured energy price for the bus BUS 4: 100.0 R$/MWh
+     Secured energy price for the bus BUS 5: 100.0 R$/MWh
+     Secured energy price for the bus BUS 6: 100.0 R$/MWh
+     Secured energy price for the bus BUS 7: 100.0 R$/MWh
+     Secured energy price for the bus BUS 8: 100.0 R$/MWh
+     Secured energy price for the bus BUS 9: 100.0 R$/MWh
+     Secured energy price for the bus BUS 10: 100.0 R$/MWh
+     Secured energy price for the bus BUS 11: 100.0 R$/MWh
+     Secured energy price for the bus BUS 12: 100.0 R$/MWh
+     Secured energy price for the bus BUS 13: 100.0 R$/MWh
+     Secured energy price for the bus BUS 14: 100.0 R$/MWh
+ 
+     Optimal generation of GENCO 1: 0.65 MWh
+     Optimal generation of GENCO 2: 0.65 MWh
+     Optimal generation of GENCO 3: 0.65 MWh
+     Optimal generation of GENCO 4: 0.0 MWh
+     Optimal generation of GENCO 5: 0.65 MWh
+ 
+     Optimal flow in line CIRCUITO 1: 0.36 MW
+     Optimal flow in line CIRCUITO 2: 0.29 MW
+     Optimal flow in line CIRCUITO 3: 0.27 MW
+     Optimal flow in line CIRCUITO 4: 0.28 MW
+     Optimal flow in line CIRCUITO 5: 0.24 MW
+     Optimal flow in line CIRCUITO 6: -0.02 MW
+     Optimal flow in line CIRCUITO 7: -0.17 MW
+     Optimal flow in line CIRCUITO 8: -0.11 MW
+     Optimal flow in line CIRCUITO 9: 0.06 MW
+     Optimal flow in line CIRCUITO 10: 0.28 MW
+     Optimal flow in line CIRCUITO 11: -0.02 MW
+     Optimal flow in line CIRCUITO 12: 0.06 MW
+     Optimal flow in line CIRCUITO 13: 0.13 MW
+     Optimal flow in line CIRCUITO 14: -0.65 MW
+     Optimal flow in line CIRCUITO 15: 0.53 MW
+     Optimal flow in line CIRCUITO 16: 0.15 MW
+     Optimal flow in line CIRCUITO 17: 0.16 MW
+     Optimal flow in line CIRCUITO 18: 0.06 MW
+     Optimal flow in line CIRCUITO 19: 0.0 MW
+     Optimal flow in line CIRCUITO 20: -0.01 MW
+ 
+     Optimal Reserve Up of GENCO 1: 0.0 MWh
+     Optimal Reserve Up of GENCO 2: 0.0 MWh
+     Optimal Reserve Up of GENCO 3: 0.0 MWh
+     Optimal Reserve Up of GENCO 4: 0.65 MWh
+     Optimal Reserve Up of GENCO 5: 0.0 MWh
+ 
+     Optimal Reserve Down of GENCO 1: 0.0 MWh
+     Optimal Reserve Down of GENCO 2: 0.0 MWh
+     Optimal Reserve Down of GENCO 3: 0.0 MWh
+     Optimal Reserve Down of GENCO 4: 0.0 MWh
+     Optimal Reserve Down of GENCO 5: 0.0 MWh
+ 
+     Optimal bus angle BUS 1: 0.15 grad
+     Optimal bus angle BUS 2: 0.13 grad
+     Optimal bus angle BUS 3: 0.08 grad
+     Optimal bus angle BUS 4: 0.08 grad
+     Optimal bus angle BUS 5: 0.09 grad
+     Optimal bus angle BUS 6: 0.02 grad
+     Optimal bus angle BUS 7: 0.1 grad
+     Optimal bus angle BUS 8: 0.22 grad
+     Optimal bus angle BUS 9: 0.04 grad
+     Optimal bus angle BUS 10: 0.03 grad
+     Optimal bus angle BUS 11: 0.02 grad
+     Optimal bus angle BUS 12: 0.0 grad
+     Optimal bus angle BUS 13: 0.0 grad
+     Optimal bus angle BUS 14: 0.0 grad
+
+    Total cost = 0.26 k$
+
+    Total deficit pre = 0.0
+
+    Total deficit tota = 0.0
+
+    Total deficit tota = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+  Optmization process took 0.21 seconds
