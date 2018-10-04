@@ -1067,6 +1067,7 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         prices = getdual(getindex(model, :load_balance))
         generation = getvalue( model, :g )
         cir_flow   = getvalue( model, :f )
+        commit     = getvalue(model, :commit)
 
         if case.Flag_Res == 1
             res_up_gen   = getvalue( model, :resup )
@@ -1133,8 +1134,15 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             # write reserve down output
             write_outputs("resdown_results.csv", path, bus_ang[:,1,:], buses.Name)
         end
-
+        
         # commit output
+        w_Log( " " , path )
+        
+        for u in 1:case.nGen
+            w_Log("     Commitment of $(generators.Name[u]): $(round(commit[u,:],2))" , path )
+        end
+        # write reserve down output
+        write_outputs("commit_results.csv", path, commit, generators.Name)
     
 
     defcit = getvalue( model, :delta )
