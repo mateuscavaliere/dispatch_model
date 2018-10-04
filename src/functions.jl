@@ -886,7 +886,7 @@ function add_ramping_constraint( model::JuMP.Model , case::Case , generators::Ge
     #temos que considerar o estágio inicial
     
     # primeiro estagio
-    @constraint(model, ramp_up_cstr_1[u=1:case.nGen], pot_disp[u,t] <= generators.InitGen[u] 
+    @constraint(model, ramp_up_cstr_1[u=1:case.nGen], pot_disp[u,1] <= generators.InitGen[u] 
                                                         + ramp_up[u] * generators.InitCommit[u]
                                                         + start_up[u] * (commit[u,1] - generators.InitCommit[u])
                                                         + generators.PotMax[u] * (1 - commit[u,1] ))
