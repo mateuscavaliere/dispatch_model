@@ -900,7 +900,9 @@ function add_ramping_constraint( model::JuMP.Model , case::Case , generators::Ge
     @constraint(model, shutdown_cstr[u=1:case.nGen,t=1:(case.nStages-1)], pot_disp[p,t] <= generators.PotMax[p] * commit[p,t+1] + shutdown[u] * (commit[u,t] - commit[u,t+1]))
 
     # ramp down 
-    @constraint(model, ramp_down_cstr[u=1:case.nGen, t=1:case.nStages], pot_disp[u,t-1] - pot_disp[u,t] <= ramp_down[u] * commit[u,t] + shutdown[u] * (commit[u,t-1] + commit[u,t]) + generators.PotMax[u] * (1 - commit[u,t-1]))
+    @constraint(model, ramp_down_cstr_1[u=1:case.nGen], generators.PotMax[u] * generators.InitCommit[u] - pot_disp[u,1] <= ramp_down[u] * commit[u,1] + shut_down[u] * (generators.InitCommit[u] + commit[u,1]) + generators.PotMax[u] * (1 - generators.InitCommit[u]))
+
+    @constraint(model, ramp_down_cstr_2[u=1:case.nGen, t=2:case.nStages], pot_disp[u,t-1] - pot_disp[u,t] <= ramp_down[u] * commit[u,t] + shut_down[u] * (commit[u,t-1] + commit[u,t]) + generators.PotMax[u] * (1 - commit[u,t-1]))
 end
 
 function add_updowntime_constraint( model::JuMP.Model , case::Case , generators::Gencos )
@@ -919,8 +921,8 @@ function add_updowntime_constraint( model::JuMP.Model , case::Case , generators:
 
     #Pedir para o Mateus adicionar a entrada gencos.initialCommit, gencos.initialOn e gencos.initialOff
     # GENCOS.InitCommit , GENCOS.InitGen , GENCOS.InitOffTime , GENCOS.InitOnTime
-    nMon = minimum.(case.nStages*ones(case.nGen),(generators.UpTime-generators.InitOnTime).*generators.InitCommit)
-    nMoff = minimum.(case.nStages*ones(case.nGen),(generators.DownTime-generators.InitOffTime).*(1-generators.initialCommit))
+    nMon = min.(case.nStages*ones(Float64, case.nGen),(generators.UpTime-generators.InitOnTime).*generators.InitCommit)
+    nMoff = min.(case.nStages*ones(Float64, case.nGen),(generators.DownTime-generators.InitOffTime).*(1-generators.InitCommit))
 
     # maximum Uptime on initial periods
     @constraint(model, must_On[u=1:case.nGen], sum(1-commit[u,t] for t in 1:nMon[u]) == 0 )
@@ -934,6 +936,9 @@ function add_updowntime_constraint( model::JuMP.Model , case::Case , generators:
     for u in 1:case.nGen
         # minimum uptime in middle periods
         for (i,k) in enumerate((nMon[u]+1):(case.nStages-generators.UpTime[u]+1))
+            @show (i,k)
+            @show nMon[u]
+            # @show collect(k:(k+generators.UpTime[u]-1))
             minuptime_cstr1[u,i] =  @constraint(model, sum(commit[u,n] for n=k:(k+generators.UpTime[u]-1)) >=  generators.UpTime[u]*(commit[u,k])-commit[u,k-1])
         end
         
