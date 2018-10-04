@@ -1084,43 +1084,57 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         for b in 1:case.nBus
             w_Log("     Marginal cost for the bus $(buses.Name[b]): $(round(sum(prices[b,:,:]),2)) R\$/MWh" , path )
         end
-
+        # write bus output
+        write_outputs("bus_results.csv", path, prices[:,1,:], buses.Name)
+        
         w_Log( " " , path )
-
+        
         for u in 1:case.nGen
             w_Log("     Optimal generation of $(generators.Name[u]): $(round.(generation[u,1,:],2)) MWh" , path )
         end
-
+        # write generation output
+        write_outputs("gen_results.csv", path, generation[:,1,:], generators.Name)
+        
         w_Log( " " , path )
-
+        
         for l in 1:case.nCir
             w_Log("     Optimal flow in line $(circuits.Name[l]): $(round(cir_flow[l,1,:],2)) MW" , path )
         end
-
+        # write generation output
+        write_outputs("circ_results.csv", path, cir_flow[:,1,:], circuits.Name)
+        
         if case.Flag_Res == 1
-
+            
             w_Log( " " , path )
-
+            
             for u in 1:case.nGen
                 w_Log("     Optimal Reserve Up of $(generators.Name[u]): $(round(res_up_gen[u,:],2)) MWh" , path )
             end
-
+            # write reserve up output
+            write_outputs("resup_results.csv", path, res_up_gen, generators.Name)
+            
             w_Log( " " , path )
-
+            
             for u in 1:case.nGen
                 w_Log("     Optimal Reserve Down of $(generators.Name[u]): $(round(res_down_gen[u,:],2)) MWh" , path )
             end
-
+            # write reserve down output
+            write_outputs("resdown_results.csv", path, res_down_gen, generators.Name)
+            
         end
-
+        
         if case.Flag_Ang == 1
             
             w_Log( " " , path )
-
+            
             for b in 1:case.nBus
                 w_Log("     Optimal bus angle $(buses.Name[b]): $(round(bus_ang[b,1,:],2)) grad" , path )
             end
+            # write reserve down output
+            write_outputs("resdown_results.csv", path, bus_ang[:,1,:], buses.Name)
         end
+
+        # commit output
     
 
     defcit = getvalue( model, :delta )
@@ -1133,6 +1147,29 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         # w_Log("\n     $(case.al)" , path )
     end
 
+end
+
+function write_outputs(file_name::String, file_path::String, values::Array{Float64}, agents::Array{String})
+    file_full_path = joinpath(file_path, file_name)
+
+    # open file stream
+    fstream = open(file_full_path, "w")
+
+    # writes file header
+    write(fstream, "Hour," * join(agents, ",") * "\n")
+    
+    # get number of lines
+    n_agents, n_lines = size(values)
+    for line in 1:n_lines
+        for agent in 1:n_agents
+            write(fstream,  "$(line),$(values[agent,line]),")
+        end
+        # goto next line
+        write(fstream, "\n")
+    end
+
+    # closes file stream
+    close(fstream)
 end
 
 #--- build_dispatch: This function call all other functions associate with the dispatch optmization problem ---
