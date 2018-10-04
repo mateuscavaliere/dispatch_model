@@ -401,7 +401,7 @@ function read_init_commit( path::String , case::Case , file_name::String = "init
 
     #- Create struct to buffer gencos information
 
-    initCommit  = Array{Int}(nGen)
+    initCommit  = Array{Int}(nGen,3)
     initGen     = Array{Float64}(nGen)
     initOffTime = Array{Int}(nGen)
     initOnTime  = Array{Int}(nGen)
@@ -410,19 +410,22 @@ function read_init_commit( path::String , case::Case , file_name::String = "init
 
     for u in 1:nGen
         auxdata         = split( iodata[u] , "," )
-        initCommit[u]   = string_converter( auxdata[3]  , Int     , "Invalid entry for the initial commit stage of genco $(u) ")
-        initGen[u]      = string_converter( auxdata[4]  , Float64 , "Invalid entry for the intial generation of genco $(u) ")
-        initOffTime[u]  = string_converter( auxdata[5]  , Int     , "Invalid entry for the off-line time in t = 0 of genco $(u)")
-        initOnTime[u]   = string_converter( auxdata[6]  , Int     , "Invalid entry for the on-line time in t = 0 of genco $(u) ")        
+        initGen[u]      = string_converter( auxdata[3]  , Float64 , "Invalid entry for the intial generation of genco $(u) ")
+        initOffTime[u]  = string_converter( auxdata[4]  , Int     , "Invalid entry for the off-line time in t = 0 of genco $(u)")
+        initOnTime[u]   = string_converter( auxdata[5]  , Int     , "Invalid entry for the on-line time in t = 0 of genco $(u) ")  
+        for pat in 1:3
+            initCommit[u,pat]   = string_converter( auxdata[5+pat]  , Int     , "Invalid entry for the initial commit stage of genco $(u) ")
+        end
     end
 
     #- Check input consistency
 
     for u in 1:nGen
-
-        if (initCommit[u] != 0) && (initCommit[u] != 1)
-            w_Log("     ERROR: Invalid commit value for the generator $(u) in t = 0", path );
-            exit()
+        for pat in 1:3
+            if (initCommit[u,pat] != 0) && (initCommit[u,pat] != 1)
+                w_Log("     ERROR: Invalid commit value for the generator $(u) in t = 0", path );
+                exit()
+            end
         end
 
         if (initGen[u] < 0)
