@@ -5,7 +5,6 @@
 include( joinpath( dirname(@__FILE__) , "read_database.jl" ) )
 include( joinpath( dirname(@__FILE__) , "build_model.jl"   ) )
 
-
 #       ------------------------------------------------
 #                  Defining general functions 
 #       ------------------------------------------------
@@ -316,7 +315,7 @@ function main( path::String )
 
     w_Log( "  Solving dispatch problem" , PATH_CASE );
 
-    # time_counter = @elapsed build_dispatch( PATH_CASE , CASE , CIRCUITS , GENCOS , DEMANDS , BUSES );
+    time_counter = @elapsed build_dispatch( PATH_CASE , CASE , CIRCUITS , GENCOS , DEMANDS , BUSES );
 
     w_Log( "\n  Optmization process took $(round(time_counter,3)) seconds" , PATH_CASE );
 
