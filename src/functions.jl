@@ -851,7 +851,7 @@ function add_unit_commitment( model::JuMP.Model , case::Case , generators::Genco
     @constraint(model, commit_mingen[u=1:case.nGen, c=1:(case.nContScen+1), t=1:case.nStages], g[u,c,t] >= gmin[u] * commit[u,t])
 
     # disponible power constraints
-    @constraint(model, pot_disp_cstr[u=1:case.nGen, t=1:case.nStages], pot_disp[u,t] <= generators.Pot[u] * commit[u,t])
+    @constraint(model, pot_disp_cstr[u=1:case.nGen, t=1:case.nStages], pot_disp[u,t] <= generators.PotMax[u] * commit[u,t])
 end
 
 
@@ -889,18 +889,18 @@ function add_ramping_constraint( model::JuMP.Model , case::Case , generators::Ge
     @constraint(model, ramp_up_cstr_1[u=1:case.nGen], pot_disp[u,t] <= generators.InitGen[u] 
                                                         + ramp_up[u] * generators.InitCommit[u]
                                                         + start_up[u] * (commit[u,1] - generators.InitCommit[u])
-                                                        + generators.Pot[u] * (1 - commit[u,1] ))
+                                                        + generators.PotMax[u] * (1 - commit[u,1] ))
 
     # demais estagios
     @constraint(model, ramp_up_cstr_2[u=1:case.nGen, t=2:case.nStages], pot_disp[u,t] <= g[u,t-1] 
                                                         + ramp_up[u] * commit[u,t-1]
                                                         + start_up[u] * (commit[u,t] - commit[u,t-1])
-                                                        + generators.Pot[u] * (1 - commit[u,t]))
+                                                        + generators.PotMax[u] * (1 - commit[u,t]))
     # shutdown ramp rate
-    @constraint(m, shutdown_cstr[u=1:case.nGen,t=1:(case.nStages-1)], pot_disp[p,t] <= generators.Pot[p] * commit[p,t+1] + shutdown[u] * (commit[u,t] - commit[u,t+1]))
+    @constraint(m, shutdown_cstr[u=1:case.nGen,t=1:(case.nStages-1)], pot_disp[p,t] <= generators.PotMax[p] * commit[p,t+1] + shutdown[u] * (commit[u,t] - commit[u,t+1]))
 
     # ramp down 
-    @constraint(m, ramp_down_cstr[u=1:case.nGen, t=1:case.nStages], pot_disp[u,t-1] - pot_disp[u,t] <= ramp_down[u] * commit[u,t] + shutdown[u] * (commit[u,t-1] + commit[u,t]) + generators.Pot[u] * (1 - commit[u,t-1]))
+    @constraint(m, ramp_down_cstr[u=1:case.nGen, t=1:case.nStages], pot_disp[u,t-1] - pot_disp[u,t] <= ramp_down[u] * commit[u,t] + shutdown[u] * (commit[u,t-1] + commit[u,t]) + generators.PotMax[u] * (1 - commit[u,t-1]))
 end
 
 function add_updowntime_constraint( model::JuMP.Model , case::Case , generators::Gencos )
