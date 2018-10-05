@@ -186,8 +186,37 @@ function write_outputs(file_name::String, file_path::String, values::Array{Float
     # get number of lines
     n_agents, n_lines = size(values)
     for line in 1:n_lines
+        write(fstream,  "$(line),")
         for agent in 1:n_agents
-            write(fstream,  "$(line),$(values[agent,line]),")
+            write(fstream,  "$(values[agent,line]),")
+        end
+        # goto next line
+        write(fstream, "\n")
+    end
+
+    # closes file stream
+    close(fstream)
+end
+
+function write_outputs(file_name::String, file_path::String, values, agents::Array{String})
+    file_full_path = joinpath(file_path, file_name)
+
+    # open file stream
+    fstream = open(file_full_path, "w")
+
+    # writes file header
+    write(fstream, "Hour," * join(agents, ",") * "\n")
+    
+    # get number of lines
+    n_agents, n_lines  = JuMP.size(values)
+    # @show values
+    # @show typeof(values)
+    # @show values[1,:]
+    for line in 1:(n_lines)
+        write(fstream,  "$(line),")
+        for agent in 1:n_agents
+            a = values[agent,:][line]
+            write(fstream,  "$(a),")
         end
         # goto next line
         write(fstream, "\n")
@@ -205,7 +234,7 @@ function read_data_base( path::String )
     #---- Loading case configuration ----
     w_Log("     Case configuration", path );
     CASE.Flag_Res , CASE.Flag_Ang , CASE.Flag_Cont , CASE.Flag_nCont , CASE.nStages = read_options(  path );
-
+    
     #---- Loading buses configuration ----
     w_Log("     Buses configuration", path );
     CASE.nBus , BUSES                              = read_buses(    path );
@@ -236,7 +265,7 @@ function build_dispatch( path::String , case:: Case, circuits::Circuits , genera
     case.nContScen, case.ag, case.al = get_contingency_scenarios( case )
 
     #--- Creating optmization problem
-    MODEL = create_model( case )
+    MODEL = create_model( case, generators )
 
     #- Add grid constraints
     add_grid_constraint!(  MODEL , case , circuits )

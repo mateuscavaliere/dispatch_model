@@ -6,7 +6,7 @@
 #- Description: This module cointains the functions to build the optmization problem
 
 #--- create_model: This function creates the JuMP model and its variables ---
-function create_model( case::Case )
+function create_model( case::Case, generators::Gencos)
     
     #---------------------------
     #---  Defining variables ---
@@ -21,15 +21,20 @@ function create_model( case::Case )
     myModel = Model( solver = CbcSolver( ) );
 
     @variable(myModel, f[1:case.nCir, 1:(case.nContScen+1), 1:case.nStages] );
-    @variable(myModel, g[1:case.nGen, 1:(case.nContScen+1), 1:case.nStages] >= 0);
+    @variable(myModel, g[1:case.nGen, 1:(case.nContScen+1), 0:case.nStages] >= 0);
     @variable(myModel, commit[1:case.nGen, -3:case.nStages]>= 0, Bin);
     @variable(myModel, delta[1:case.nBus, 1:(case.nContScen+1), 1:case.nStages] >= 0);
-    @variable(myModel, pot_disp[1:case.nGen, 1:case.nStages]>=0)
+    @variable(myModel, pot_disp[1:case.nGen, 0:case.nStages]>=0)
     @variable(myModel, startUpCost[1:case.nGen,1:case.nStages]>=0)
     @variable(myModel, shutDownCost[1:case.nGen,1:case.nStages]>=0)
     
     for u in 1:case.nGen
-        @constraint(myModel, commit[u,0] == generators.initialCommit[u])
+        for t in 1:size(generators.InitCommit)[2]
+            @constraint(myModel, commit[u,1-t] == generators.InitCommit[u,t])
+        end
+        for c in 1:(case.nContScen+1)
+            @constraint(myModel,  g[u,c,0] == generators.InitGen[u])
+        end
     end
 
     if case.Flag_Ang == 1
@@ -103,7 +108,6 @@ function add_gen_constraint!( model::JuMP.Model , case::Case , generators::Genco
 
     local u::Int                                    # Local variable to loop over generators
     
-    local g::Array{JuMP.Variable,3}                 # Local variable to represent generation decision variable
     local resup::Array{JuMP.Variable,2}               # Local variable to represent reserve up decision variable
     local resdown::Array{JuMP.Variable,2}             # Local variable to represent reserve down decision variable
      
@@ -172,7 +176,6 @@ function add_load_balance_constraint!( model::JuMP.Model , case::Case , generato
     local b::Int                                                    # Local variable to loop over buses
     local d::Int                                                    # Local variable to loop over demands
 
-    local g::Array{JuMP.Variable,3}                                 # Local variable to represent generation decision variable
     local f::Array{JuMP.Variable,3}                                 # Local variable to represent flow decision variable
     local delta::Array{JuMP.Variable,3}                                 # Local variable to represent deficit variable
 
@@ -206,7 +209,6 @@ function add_contingency_constraint!( model::JuMP.Model , case::Case , generator
 
     local u::Int                                    # Local variable to loop over generators
     
-    local g::Array{JuMP.Variable,3}                 # Local variable to represent generation decision variable
     local resup::Array{JuMP.Variable,2}             # Local variable to represent reserve up decision variable
     local resdown::Array{JuMP.Variable,2}           # Local variable to represent reserve down decision variable
     local ag::Array{Int,2}                          # Local variable to represent contingency variable
@@ -237,11 +239,9 @@ function add_unit_commitment( model::JuMP.Model , case::Case , generators::Genco
 
     local u::Int                                                    # Local variable to loop over generators
 
-    local g::Array{JuMP.Variable,3}                                 # Local variable to represent generation decision variable
 
     local commit_maxgen::Array{JuMP.ConstraintRef,3}                 # Local variable to represent maximmum generation bound
     local commit_mingen::Array{JuMP.ConstraintRef,3}                 # Local variable to represent minimum generation bound
-    local pot_disp_cstr::Array{JuMP.ConstraintRef,2}                 # Local variable to represent potência disponível dado o commitment
     
     local gmin::Array{Float64,1}                                     # Local variable to represent minimum generation
 
@@ -257,7 +257,7 @@ function add_unit_commitment( model::JuMP.Model , case::Case , generators::Genco
     @constraint(model, commit_mingen[u=1:case.nGen, c=1:(case.nContScen+1), t=1:case.nStages], g[u,c,t] >= gmin[u] * commit[u,t])
 
     # disponible power constraints
-    @constraint(model, pot_disp_cstr[u=1:case.nGen, t=1:case.nStages], pot_disp[u,t] <= generators.PotMax[u] * commit[u,t])
+    @constraint(model, pot_disp_cstr[u=1:case.nGen, t=0:case.nStages], pot_disp[u,t] <= generators.PotMax[u] * commit[u,t])
 end
 
 
@@ -268,7 +268,6 @@ function add_ramping_constraint( model::JuMP.Model , case::Case , generators::Ge
     #---------------------------
     local u::Int                                    # Local variable to loop over generators
 
-    local g::Array{JuMP.Variable,3}                 # Local variable to represent generation decision variable
     local ramp_up::Array{Float64,1}                 # Local variable to represent ramp up generation variable
     local ramp_down::Array{Float64,1}               # Local variable to represent ramp down generation variable
     local start_up::Array{Float64,1}                # Local variable to represent start up ramp variable
@@ -293,12 +292,12 @@ function add_ramping_constraint( model::JuMP.Model , case::Case , generators::Ge
     
 
     # demais estagios
-    @constraint(model, ramp_up_cstr_2[u=1:case.nGen, t=1:case.nStages], pot_disp[u,t] <= g[u,t-1] 
+    @constraint(model, ramp_up_cstr_2[u=1:case.nGen, t=1:case.nStages], pot_disp[u,t] <= g[u,1,t-1] 
                                                         + ramp_up[u] * commit[u,t-1]
                                                         + start_up[u] * (commit[u,t] - commit[u,t-1])
                                                         + generators.PotMax[u] * (1 - commit[u,t]))
     # shutdown ramp rate
-    @constraint(model, shutdown_cstr[u=1:case.nGen,t=1:(case.nStages-1)], pot_disp[p,t] <= generators.PotMax[p] * commit[p,t+1] + shutdown[u] * (commit[u,t] - commit[u,t+1]))
+    @constraint(model, shutdown_cstr[u=1:case.nGen,t=1:(case.nStages-1)], pot_disp[u,t] <= generators.PotMax[u] * commit[u,t+1] + shut_down[u] * (commit[u,t] - commit[u,t+1]))
 
     # ramp down 
     @constraint(model, ramp_down_cstr_2[u=1:case.nGen, t=1:case.nStages], pot_disp[u,t-1] - pot_disp[u,t] <= ramp_down[u] * commit[u,t] + shut_down[u] * (commit[u,t-1] + commit[u,t]) + generators.PotMax[u] * (1 - commit[u,t-1]))
@@ -318,10 +317,10 @@ function add_updowntime_constraint( model::JuMP.Model , case::Case , generators:
     commit = model[:commit]
     
 
-    #Pedir para o Mateus adicionar a entrada gencos.initialCommit, gencos.initialOn e gencos.initialOff
+    #Pedir para o Mateus adicionar a entrada gencos.InitCommit, gencos.initialOn e gencos.initialOff
     # GENCOS.InitCommit , GENCOS.InitGen , GENCOS.InitOffTime , GENCOS.InitOnTime
     nMon = min.(case.nStages*ones(Float64, case.nGen), max.(generators.UpTime-generators.InitOnTime, 0).*generators.InitCommit[:,1])
-    nMoff = min.(case.nStages*ones(Float64, case.nGen),(generators.DownTime-generators.InitOffTime).*(1-generators.InitCommit[:,1]))
+    nMoff = min.(case.nStages*ones(Float64, case.nGen), max.(generators.DownTime-generators.InitOffTime,0).*(1-generators.InitCommit[:,1]))
 
     # maximum Uptime on initial periods
     @constraint(model, must_On[u=1:case.nGen], sum(1-commit[u,t] for t in 1:nMon[u]) == 0 )
@@ -377,48 +376,14 @@ function add_startupcost_shutdowncost_constraint( model::JuMP.Model , case::Case
     upCost = hcat(generators.StartUpCost_1,  generators.StartUpCost_2,  generators.StartUpCost_3)
     
     @constraintref startupcost1[1:case.nGen, 1:case.nStages, 1:3]
-    for u=1:case.nGen
-        
-        for  t=4:case.nStages, pat=1:3
-            startupcost1[u, t, pat] = @constraint(model, startUpCost[u,t] >= upCost[u,pat]*(commit[u,t]-sum(commit[u,t-n] for n=1:pat)))
-        end
-        # t==1
-        if generators.InitOffTime >= 3
-            startupcost1[u, 1, 1] = @constraint(model, startUpCost[u,1] >= upCost[u,3])
-        elseif generators.InitOffTime == 2
-            startupcost1[u, 1, 1] = @constraint(model, startUpCost[u,1] >= upCost[u,2])
-        elseif generators.InitOffTime == 1
-            startupcost1[u, 1, 1] = @constraint(model, startUpCost[u,1] >= upCost[u,1])
-        end
-        
-        # t == 2
-        startupcost1[u, 2, 1] = @constraint(model, startUpCost[u,2] >= upCost[u,1]* (commit[u,2] - commit[u,1]) )
-        startupcost1[u, 2, 2] = @constraint(model, startUpCost[u,2] >= upCost[u,2]* (commit[u,2] - commit[u,1] - generators.initialCommit[u]))
-        if generators.InitOffTime >= 2
-            startupcost1[u, 2, 2] = @constraint(model, startUpCost[u,2] >= upCost[u,3]* (commit[u,2] - commit[u,1] - generators.initialCommit[u]))
-        end
+    for u=1:case.nGen,t=1:case.nStages, pat=1:3
 
-       # t= 3
-       for  t=4:case.nStages, n=1:3
-        startupcost1[u, t, pat] = @constraint(model, startUpCost[u,t] >= upCost[u,pat]*(commit[u,t]-sum(commit[u,t-n] )))
-        end
-       if generators.InitOffTime >= 3
-        startupcost1[u, t, pat] = @constraint(model, startUpCost[u,t] >= upCost[u,3])
-        elseif generators.InitOffTime == 2
-            startupcost1[u, t, pat] = @constraint(model, startUpCost[u,t] >= upCost[u,2])
-        elseif generators.InitOffTime == 1
-            startupcost1[u, t, pat] = @constraint(model, startUpCost[u,t] >= upCost[u,1])
-        end
+        startupcost1[u, t, pat] = @constraint(model, startUpCost[u,t] >= upCost[u,pat]*(commit[u,t]-sum(commit[u,t-n] for n=1:pat)))
+      
     end
-    
-    @constraint(model, startupcostpositive[u=1:case.nGen, t=1:case.nStages], startUpCost[u,t] >= 0)
-    #--- Shutdown cost
-    
-    @constraint(model, shutdowncost1[u=1:case.nGen, t=1:case.nStages, pat=1:3], shutDownCost[u,t] >= generators.ShutdownCost *(commit[u,t-1]- commit[u,t]))
+        
+    @constraint(model, shutdowncost1[u=1:case.nGen, t=1:case.nStages], shutDownCost[u,t] >= generators.ShutdownCost[u] *(commit[u,t-1]- commit[u,t]))
 
-    @constraint(model, shutdowncost1[u=1:case.nGen, t=2:case.nStages, pat=1:3], shutDownCost[u,t] >= generators.ShutdownCost *(commit[u,t-1]- commit[u,t]))
-
-    @constraint(model, shutdowncostpositive[u=1:case.nGen, t=1:case.nStages, pat=1:3], shutDownCost[u,t] >= 0)
 end
 
 #--- add_obj_fun!: This function creates and append the objective function to the model ---
@@ -430,7 +395,6 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
 
     local u::Int                                                    # Local variable to loop over generators
     
-    local g::Array{JuMP.Variable,3}                                 # Local variable to represent generation decision variable
     local resup::Array{JuMP.Variable,2}                               # Local variable to represent reserve up decision variable
     local resdown::Array{JuMP.Variable,2}                             # Local variable to represent reserve down decision variable
 
@@ -484,7 +448,6 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
     local status::Symbol                    # Local variable to represent optmization status
 
     local prices::Array{Float64}            # Local variable to buffer dual variable (prices) after optmization
-    local generation::Array{Float64}        # Local variable to buffer optimal generation
     local cir_flow::Array{Float64}          # Local variable to buffer optimal circuit flow
     local res_up_gen::Array{Float64}        # Local variable to buffer optimal up reserve
     local res_down_gen::Array{Float64}      # Local variable to buffer optimal down reserve
@@ -519,10 +482,10 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         w_Log("\n     Optimal solution found!\n" , path )
 
         for b in 1:case.nBus
-            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(round(sum(prices[b,:,:]),2)) R\$/MWh" , path )
+            w_Log("     Marginal cost for the bus $(buses.Name[b]): $(round.(sum(prices[b,:,:]),2)) R\$/MWh" , path )
         end
         # write bus output
-        write_outputs("bus_results.csv", path, prices[:,1,:], buses.Name)
+        write_outputs("results_bus.csv", path, prices[:,1,:], buses.Name)
         
         w_Log( " " , path )
         
@@ -530,33 +493,33 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             w_Log("     Optimal generation of $(generators.Name[u]): $(round.(generation[u,1,:],2)) MWh" , path )
         end
         # write generation output
-        write_outputs("gen_results.csv", path, generation[:,1,:], generators.Name)
+        write_outputs("results_gen.csv", path, generation[:,1,:], generators.Name)
         
         w_Log( " " , path )
         
         for l in 1:case.nCir
-            w_Log("     Optimal flow in line $(circuits.Name[l]): $(round(cir_flow[l,1,:],2)) MW" , path )
+            w_Log("     Optimal flow in line $(circuits.Name[l]): $(round.(cir_flow[l,1,:],2)) MW" , path )
         end
         # write generation output
-        write_outputs("circ_results.csv", path, cir_flow[:,1,:], circuits.Name)
+        write_outputs("results_circ.csv", path, cir_flow[:,1,:], circuits.Name)
         
         if case.Flag_Res == 1
             
             w_Log( " " , path )
             
             for u in 1:case.nGen
-                w_Log("     Optimal Reserve Up of $(generators.Name[u]): $(round(res_up_gen[u,:],2)) MWh" , path )
+                w_Log("     Optimal Reserve Up of $(generators.Name[u]): $(round.(res_up_gen[u,:],2)) MWh" , path )
             end
             # write reserve up output
-            write_outputs("resup_results.csv", path, res_up_gen, generators.Name)
+            write_outputs("results_resup.csv", path, res_up_gen, generators.Name)
             
             w_Log( " " , path )
             
             for u in 1:case.nGen
-                w_Log("     Optimal Reserve Down of $(generators.Name[u]): $(round(res_down_gen[u,:],2)) MWh" , path )
+                w_Log("     Optimal Reserve Down of $(generators.Name[u]): $(round.(res_down_gen[u,:],2)) MWh" , path )
             end
             # write reserve down output
-            write_outputs("resdown_results.csv", path, res_down_gen, generators.Name)
+            write_outputs("results_resdown.csv", path, res_down_gen, generators.Name)
             
         end
         
@@ -565,20 +528,20 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             w_Log( " " , path )
             
             for b in 1:case.nBus
-                w_Log("     Optimal bus angle $(buses.Name[b]): $(round(bus_ang[b,1,:],2)) grad" , path )
+                w_Log("     Optimal bus angle $(buses.Name[b]): $(round.(bus_ang[b,1,:],2)) grad" , path )
             end
             # write reserve down output
-            write_outputs("resdown_results.csv", path, bus_ang[:,1,:], buses.Name)
+            write_outputs("results_resdown.csv", path, bus_ang[:,1,:], buses.Name)
         end
         
         # commit output
         w_Log( " " , path )
-        
+        @show commit
         for u in 1:case.nGen
-            w_Log("     Commitment of $(generators.Name[u]): $(round(commit[u,:],2))" , path )
+            w_Log("     Commitment of $(generators.Name[u]): $(round.(commit[u,:],2))" , path )
         end
         # write reserve down output
-        write_outputs("commit_results.csv", path, commit, generators.Name)
+        write_outputs("results_commit.csv", path, commit, generators.Name)
     
 
     defcit = getvalue( model, :delta )
