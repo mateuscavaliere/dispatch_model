@@ -386,6 +386,7 @@ function add_startupcost_shutdowncost_constraint( model::JuMP.Model , case::Case
     upCost = hcat(generators.StartUpCost_1,  generators.StartUpCost_2,  generators.StartUpCost_3)
     
     @constraintref startupcost1[1:case.nGen, 1:case.nStages, 1:3]
+    
     for u=1:case.nGen,t=1:case.nStages, pat=1:3
 
         startupcost1[u, t, pat] = @constraint(model, startUpCost[u,t] >= upCost[u,pat]*(commit[u,t]-sum(commit[u,t-n] for n=1:pat)))
@@ -408,8 +409,7 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
     local resup::Array{JuMP.Variable,2}                               # Local variable to represent reserve up decision variable
     local resdown::Array{JuMP.Variable,2}                             # Local variable to represent reserve down decision variable
 
-    local obj_fun::JuMP.GenericAffExpr{Float64,JuMP.Variable}       # Local variable to represent objective function
-    local syst_cost::JuMP.GenericAffExpr{Float64,JuMP.Variable}     # Local variable to represent system total cost
+     local syst_cost::JuMP.GenericAffExpr{Float64,JuMP.Variable}     # Local variable to represent system total cost
     
     #- Assigning values
 
@@ -425,9 +425,6 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
     #-----------------------------------
     #---  Adding objective function  ---
     #-----------------------------------
-
-    obj_fun = 0
-
     if case.Flag_Res == 1
         @objective(  model , Min       , 
         + sum(g[u,1,t] * generators.CVU[u] for u in 1:case.nGen, t  in 1:case.nStages)
