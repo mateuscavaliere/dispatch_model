@@ -554,7 +554,7 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         write_outputs("results_potdisp.csv", path, potdisp, generators.Name)
         
         # write demand values
-        write_outputs("results_demand.csv", path, ( demands.Dem .* demands.Profile )', demands.Name)
+        write_outputs("results_demand.csv", path, ( demands.Dem .* demands.Profile ), demands.Name)
     
 
     defcit = getvalue( model, :delta )
