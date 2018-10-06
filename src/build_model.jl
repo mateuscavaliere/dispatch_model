@@ -344,12 +344,12 @@ function add_updowntime_constraint( model::JuMP.Model , case::Case , generators:
     for u in 1:case.nGen
         # minimum uptime in middle periods
         for (i,k) in enumerate((nMon[u]+1):(case.nStages-generators.UpTime[u]+1))
-            minuptime_cstr1[u,i] =  @constraint(model, sum(commit[u,n] for n=k:(k+generators.UpTime[u]-1)) >=  generators.UpTime[u]*(commit[u,k])-commit[u,k-1])
+            minuptime_cstr1[u,i] =  @constraint( model, sum( commit[u,n] for n=k:( k+generators.UpTime[u]-1 ) ) >=  generators.UpTime[u] * ( commit[u,k]-commit[u,k-1] ) )
         end
         
         # minimum uptime in final periods
         for (i,k) in enumerate((case.nStages-generators.UpTime[u]+2):(case.nStages))
-            minuptime_cstr2[u,i] = @constraint(model, sum(commit[u,n]-(commit[u,k]-commit[u,k-1]) for n=k:case.nStages) >= 0)
+            minuptime_cstr2[u,i] = @constraint( model, sum(commit[u,n]-( commit[u,k]-commit[u,k-1] ) for n=k:case.nStages ) >= 0 )
         end
     end
     
@@ -358,13 +358,13 @@ function add_updowntime_constraint( model::JuMP.Model , case::Case , generators:
         
         for (i,k) in enumerate((nMoff[u]+1):(case.nStages-generators.DownTime[u]+1))
             
-            mindowntime_cstr1[u,i] = @constraint(model, sum(1-commit[u,n] for n in k:(k+generators.DownTime[u]-1) ) >=  generators.DownTime[u] * (commit[u,k-1] - commit[u,k]))
+            mindowntime_cstr1[u,i] = @constraint( model, sum( 1-commit[u,n] for n in k:(k+generators.DownTime[u]-1 ) ) >=  generators.DownTime[u] * ( commit[u,k-1] - commit[u,k] ) )
             
         end
         
         # minimum downtime in final periods
         for (i,k) in enumerate((case.nStages-generators.DownTime[u]+2):(case.nStages))
-            mindowntime_cstr2[u,i] = @constraint(model, sum(1-commit[u,n]-(commit[u,k-1]-commit[u,k]) for n=k:case.nStages) >= 0)
+            mindowntime_cstr2[u,i] = @constraint( model, sum( 1-commit[u,n]-( commit[u,k-1]-commit[u,k] ) for n=k:case.nStages ) >= 0 )
         end
     end
 end
