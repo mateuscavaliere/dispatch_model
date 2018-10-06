@@ -442,7 +442,7 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
 end
 
 #--- solve_dispatch: This function calls the solver and write output into .log file ---
-function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuits::Circuits , generators::Gencos , buses::Buses )
+function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuits::Circuits , generators::Gencos , buses::Buses, demands::Demands )
 
     #---------------------------
     #---  Defining variables ---
@@ -552,6 +552,9 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         
         # write potdisp
         write_outputs("results_potdisp.csv", path, potdisp, generators.Name)
+        
+        # write demand values
+        write_outputs("results_demand.csv", path, ( demands.Dem .* demands.Profile )', demands.Name)
     
 
     defcit = getvalue( model, :delta )

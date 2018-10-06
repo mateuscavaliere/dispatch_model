@@ -304,7 +304,7 @@ function build_dispatch( path::String , case:: Case, circuits::Circuits , genera
     writeLP(MODEL, joinpath( path , "dispatch.lp") , genericnames = false)
 
     #- Build and solve optmization problem
-    solve_dispatch( path , MODEL , case , circuits , generators , buses )
+    solve_dispatch( path , MODEL , case , circuits , generators , buses,  demands)
 end
 
 #------------------------------------------
