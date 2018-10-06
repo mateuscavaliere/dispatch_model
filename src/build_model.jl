@@ -274,7 +274,6 @@ end
 
 
 function add_ramping_constraint( model::JuMP.Model , case::Case , generators::Gencos )
-
     #---------------------------
     #---  Defining variables ---
     #---------------------------
@@ -296,23 +295,17 @@ function add_ramping_constraint( model::JuMP.Model , case::Case , generators::Ge
     start_up = generators.StartUpRamp
     shut_down =  generators.ShutdownRamp
 
-    # generation is constrained by ramp-up and startup ramp rates
-    # ramp up & start-up
-
-    #Estamos levando em consideração que o estágio inicial é o estágio 1, ele pode começar com qualquer potência
-    #temos que considerar o estágio inicial
-    
-
-    # demais estagios
+    # Ramp-up and Start-up
     @constraint(model, ramp_up_cstr[u=1:case.nGen, t=1:case.nStages], pot_disp[u,t] <= g[u,1,t-1]
                                                         + ramp_up[u] * commit[u,t-1]
                                                         + start_up[u] * (commit[u,t] - commit[u,t-1])
                                                         + (generators.PotMax[u] * (1 - commit[u,t]) ) )
-    # shutdown ramp rate
-    @constraint( model, shutdown_cstr[u=1:case.nGen,t=1:(case.nStages-1)] , pot_disp[u,t] <= (generators.PotMax[u] * commit[u,t+1] ) + ( shut_down[u] * (commit[u,t] - commit[u,t+1] ) ) )
 
-    # ramp down 
-    @constraint(model, ramp_down_cstr_2[u=1:case.nGen, t=1:case.nStages], ( g[u,1,t-1] - g[u,1,t] ) <= ( ramp_down[u] * commit[u,t] ) + ( shut_down[u] * ( commit[u,t-1] - commit[u,t] ) ) + ( generators.PotMax[u])  * ( 1 - commit[u,t-1] ) )
+    # Shutdown ramp rate
+    @constraint( model, shutdown_rate_cstr[u=1:case.nGen,t=1:(case.nStages-1)] , pot_disp[u,t] <= (generators.PotMax[u] * commit[u,t+1] ) + ( shut_down[u] * (commit[u,t] - commit[u,t+1] ) ) )
+
+    # Ramp down limits
+    @constraint(model, ramp_down_limits_cstr[u=1:case.nGen, t=1:case.nStages], ( g[u,1,t-1] - g[u,1,t] ) <= ( ramp_down[u] * commit[u,t] ) + ( shut_down[u] * ( commit[u,t-1] - commit[u,t] ) ) + ( generators.PotMax[u])  * ( 1 - commit[u,t-1] ) )
 end
 
 function add_updowntime_constraint( model::JuMP.Model , case::Case , generators::Gencos )
