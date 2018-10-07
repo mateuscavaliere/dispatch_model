@@ -64,6 +64,7 @@ function read_options( path::String , file_name::String = "dispatch.dat" )
     return( flag_res , flag_ang , flag_cont, flag_cont_crit , nStages )
 end 
 
+#--- read_gencos: Function to read generators inputs ---
 function read_gencos( path::String , case::Case , buses::Buses , file_name::String = "gencos.csv")
 
     #---------------------------
@@ -80,6 +81,7 @@ function read_gencos( path::String , case::Case , buses::Buses , file_name::Stri
     #---------------------------------
     #--- Reading file (gencos.dat) ---
     #---------------------------------
+
     iofile = open( joinpath( path , file_name ) , "r" )
     iodata = readlines( iofile );
     Base.close( iofile )
@@ -116,9 +118,7 @@ function read_gencos( path::String , case::Case , buses::Buses , file_name::Stri
     gencos.CVUPat1         = Array{Float64}(nGen)
     gencos.CVUPat2         = Array{Float64}(nGen)
     gencos.CVUPat3         = Array{Float64}(nGen)
-    gencos.StartUpCost_1   = Array{Float64}(nGen)
-    gencos.StartUpCost_2   = Array{Float64}(nGen)
-    gencos.StartUpCost_3   = Array{Float64}(nGen)
+    gencos.StartUpCost     = Array{Float64}(nGen,3)
     gencos.ShutdownCost    = Array{Float64}(nGen)
     gencos.ReserveUpCost   = Array{Float64}(nGen)
     gencos.ReserveDownCost = Array{Float64}(nGen)
@@ -129,13 +129,13 @@ function read_gencos( path::String , case::Case , buses::Buses , file_name::Stri
         auxdata = split( iodata[u] , "," )
         gencos.Num[u]             = string_converter( auxdata[1]  , Int , "Invalid entry for the number of genco $(u) ")
         gencos.Name[u]            = strip( auxdata[2] )
-        gencos.Bus[u]             = string_converter( auxdata[3]  , Int     , "Invalid entry for the bus of genco $(u)")
-        gencos.PotMin[u]          = string_converter( auxdata[4]  , Float64 , "Invalid entry for the min pot of genco $(u) ")
-        gencos.PotMax[u]          = string_converter( auxdata[5]  , Float64 , "Invalid entry for the max pot of genco $(u) ")
-        gencos.PotPat1[u]         = string_converter( auxdata[6]  , Float64 , "Invalid entry for the Pot Pat 1 of genco $(u) ")
-        gencos.PotPat2[u]         = string_converter( auxdata[7]  , Float64 , "Invalid entry for the Pot Pat 2 of genco $(u) ")
-        gencos.StartUpRamp[u]     = string_converter( auxdata[8]  , Float64 , "Invalid entry for the Start-Up Ramp of genco $(u) ")
-        gencos.RampUp[u]          = string_converter( auxdata[9]  , Float64 , "Invalid entry for the Ramp-Up of genco $(u) ")
+        gencos.Bus[u]             = string_converter( auxdata[3]   , Int     , "Invalid entry for the bus of genco $(u)")
+        gencos.PotMin[u]          = string_converter( auxdata[4]   , Float64 , "Invalid entry for the min pot of genco $(u) ")
+        gencos.PotMax[u]          = string_converter( auxdata[5]   , Float64 , "Invalid entry for the max pot of genco $(u) ")
+        gencos.PotPat1[u]         = string_converter( auxdata[6]   , Float64 , "Invalid entry for the Pot Pat 1 of genco $(u) ")
+        gencos.PotPat2[u]         = string_converter( auxdata[7]   , Float64 , "Invalid entry for the Pot Pat 2 of genco $(u) ")
+        gencos.StartUpRamp[u]     = string_converter( auxdata[8]   , Float64 , "Invalid entry for the Start-Up Ramp of genco $(u) ")
+        gencos.RampUp[u]          = string_converter( auxdata[9]   , Float64 , "Invalid entry for the Ramp-Up of genco $(u) ")
         gencos.ShutdownRamp[u]    = string_converter( auxdata[10]  , Float64 , "Invalid entry for the Shutdown Ramp of genco $(u) ")
         gencos.RampDown[u]        = string_converter( auxdata[11]  , Float64 , "Invalid entry for the Ramp-Down of genco $(u) ")
         gencos.ReserveUp[u]       = string_converter( auxdata[12]  , Float64 , "Invalid entry for the Reserve-Up of genco $(u) ")
@@ -146,15 +146,17 @@ function read_gencos( path::String , case::Case , buses::Buses , file_name::Stri
         gencos.CVUPat1[u]         = string_converter( auxdata[17]  , Float64 , "Invalid entry for the CVU Pat 1 of genco $(u) ")
         gencos.CVUPat2[u]         = string_converter( auxdata[18]  , Float64 , "Invalid entry for the CVU Pat 2 of genco $(u) ")
         gencos.CVUPat3[u]         = string_converter( auxdata[19]  , Float64 , "Invalid entry for the CVU Pat 3 of genco $(u) ")
-        gencos.StartUpCost_1[u]   = string_converter( auxdata[20]  , Float64 , "Invalid entry for the Start-Up Cost 1 of genco $(u) ")
-        gencos.StartUpCost_2[u]   = string_converter( auxdata[21]  , Float64 , "Invalid entry for the Start-Up Cost 2 of genco $(u) ")
-        gencos.StartUpCost_3[u]   = string_converter( auxdata[22]  , Float64 , "Invalid entry for the Start-Up Cost 3 of genco $(u) ")
+        gencos.StartUpCost[u,1]   = string_converter( auxdata[20]  , Float64 , "Invalid entry for the Start-Up Cost 1 of genco $(u) ")
+        gencos.StartUpCost[u,2]   = string_converter( auxdata[21]  , Float64 , "Invalid entry for the Start-Up Cost 2 of genco $(u) ")
+        gencos.StartUpCost[u,3]   = string_converter( auxdata[22]  , Float64 , "Invalid entry for the Start-Up Cost 3 of genco $(u) ")
         gencos.ShutdownCost[u]    = string_converter( auxdata[23]  , Float64 , "Invalid entry for the Shutdown Cost of genco $(u) ")
         gencos.ReserveUpCost[u]   = string_converter( auxdata[24]  , Float64 , "Invalid entry for the Reserve Up Cost of genco $(u) ")
         gencos.ReserveDownCost[u] = string_converter( auxdata[25]  , Float64 , "Invalid entry for the Reserve Down Cost of genco $(u) ")
     end
 
-    #--- Checking data consistency
+    #----------------------------------
+    #--- Checking data consistency  ---
+    #----------------------------------
 
     for u in 1:nGen
         
@@ -278,38 +280,35 @@ function read_gencos( path::String , case::Case , buses::Buses , file_name::Stri
 
         #- CVU is greater than the CVU Pat 1
         if gencos.CVU[u] > gencos.CVUPat1[u]
-            w_Log("     ERROR: CVU of generator $(u) is greater than the CVU Pat 1 
-            ($(gencos.CVU[u]) R\$/MWh > $(gencos.CVUPat1[u]) R\$/MWh)", path );
+            w_Log("     ERROR: CVU of generator $(u) is greater than the CVU Pat 1 ($(gencos.CVU[u]) R\$/MWh > $(gencos.CVUPat1[u]) R\$/MWh)", path );
             exit()
         end
 
         #- CVU Pat 1 is greater than the CVU Pat 2
         if gencos.CVUPat1[u] > gencos.CVUPat2[u]
-            w_Log("     ERROR: CVU Pat 1 of generator $(u) is greater than the CVU Pat 2 
-            ($(gencos.CVUPat1[u]) R\$/MWh > $(gencos.CVUPat2[u]) R\$/MWh)", path );
+            w_Log("     ERROR: CVU Pat 1 of generator $(u) is greater than the CVU Pat 2 ($(gencos.CVUPat1[u]) R\$/MWh > $(gencos.CVUPat2[u]) R\$/MWh)", path );
             exit()
         end
 
         #- CVU Pat 2 is greater than the CVU Pat 3
         if gencos.CVUPat2[u] > gencos.CVUPat3[u]
-            w_Log("     ERROR: CVU Pat 2 of generator $(u) is greater than the CVU Pat 3 
-            ($(gencos.CVUPat2[u]) R\$/MWh > $(gencos.CVUPat3[u]) R\$/MWh)", path );
+            w_Log("     ERROR: CVU Pat 2 of generator $(u) is greater than the CVU Pat 3 ($(gencos.CVUPat2[u]) R\$/MWh > $(gencos.CVUPat3[u]) R\$/MWh)", path );
             exit()
         end
         
         #- Negative Start-up cost
         
-        if gencos.StartUpCost_1[u] < 0
+        if gencos.StartUpCost[u,1] < 0
             w_Log("     ERROR: Start-up cost 1 of generator $(u) must be grater than 0 ($(gencos.StartUpCost_1[u]) R\$/MWh)", path );
             exit()
         end
 
-        if gencos.StartUpCost_2[u] < 0
+        if gencos.StartUpCost[u,2] < 0
             w_Log("     ERROR: Start-up cost 2 of generator $(u) must be grater than 0 ($(gencos.StartUpCost_2[u]) R\$/MWh)", path );
             exit()
         end
 
-        if gencos.StartUpCost_3[u] < 0
+        if gencos.StartUpCost[u,3] < 0
             w_Log("     ERROR: Start-up cost 3 of generator $(u) must be grater than 0 ($(gencos.StartUpCost_3[u]) R\$/MWh)", path );
             exit()
         end
@@ -359,14 +358,15 @@ function read_gencos( path::String , case::Case , buses::Buses , file_name::Stri
     return( nGen , gencos )
 end
 
+#--- read_init_commit: Function to read initial commit state
 function read_init_commit( path::String , case::Case , file_name::String = "init_commit.csv")
 
     #---------------------------
     #---  Defining variables ---
     #---------------------------
 
-    local iofile::IOStream                      # Local variable to buffer connection to gencos.dat file
-    local iodata::Array{String,1}               # Local variable to buffer information from read gencos.dat file
+    local iofile::IOStream                      # Local variable to buffer connection to init_commit.csv file
+    local iodata::Array{String,1}               # Local variable to buffer information from read init_commit.csv file
     local auxdata::Array{SubString{String},1}   # Local variable to buffer information after parsing
     local u::Int                                # Local variable to loop over gencos 
     local nGen::Int                             # Local variable to buffer the number of gencos
@@ -375,9 +375,10 @@ function read_init_commit( path::String , case::Case , file_name::String = "init
     local initOffTime::Array{Int}               # Local variable to buffer the off-line time of each generator in t = 0
     local initOnTime::Array{Int}                # Local variable to buffer the on-line time of each generator in t = 0
 
-    #---------------------------------
-    #--- Reading file (gencos.dat) ---
-    #---------------------------------
+    #--------------------------------------
+    #--- Reading file (init_commit.csv) ---
+    #--------------------------------------
+
     iofile = open( joinpath( path , file_name ) , "r" )
     iodata = readlines( iofile );
     Base.close( iofile )

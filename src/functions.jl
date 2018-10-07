@@ -5,11 +5,13 @@
 include( joinpath( dirname(@__FILE__) , "read_database.jl" ) )
 include( joinpath( dirname(@__FILE__) , "build_model.jl"   ) )
 
+
 #       ------------------------------------------------
 #                  Defining general functions 
 #       ------------------------------------------------
 
 #--- w_Log: Function to write the log ---
+
 function w_Log( msg::String, path::String , flagConsole::Int = 1, flagLog::Int = 1 , logName = "dispatch.log" , wType = "a" )
     
     if flagLog == 1
@@ -31,7 +33,6 @@ function string_converter( self::String , tipo::Type , msg::String )
     try
         parse( tipo , self )
     catch
-        @show self
         error( msg )
     end
 end;
@@ -229,6 +230,7 @@ end
 #--- read_data_base: Function to load all data base ---
 function read_data_base( path::String )
 
+    #--- Creating structur to buffer case configuration
     CASE = Case();
 
     #---- Loading case configuration ----
@@ -258,53 +260,62 @@ end
 #--- build_dispatch: This function call all other functions associate with the dispatch optmization problem ---
 function build_dispatch( path::String , case:: Case, circuits::Circuits , generators::Gencos , demands::Demands , buses::Buses )
     
-    #--- Creating constraint ref
-    CONSTR = Constr()
-
     #---- Set number of contingency scenarios ----
     case.nContScen, case.ag, case.al = get_contingency_scenarios( case )
 
     #--- Creating optmization problem
     MODEL = create_model( case, generators )
 
-    #- Add grid constraints
-    add_grid_constraint!(  MODEL , case , circuits )
+    #- Add load balance constraints
+    add_load_balance_constraint!( MODEL , case , generators , circuits , demands )
 
-    #- Add angle lag constraints
+    #- Add startup cost constraints
+    add_startupcost_constraint!( MODEL , case , generators )
 
-    if case.Flag_Ang == 1
-        add_angle_constraint!( MODEL , case , circuits )
-    end
+    #- Add shutdown cost constraints
+    add_shutdowncost_constraint!( MODEL , case , generators )
 
     #- Add maximum and minimum generation constraints
-    add_gen_constraint!( MODEL , case , generators )
+    add_generation_limits_constraint!( MODEL , case , generators )
+
+    #- Add maximum available power constraints
+    add_max_available_power_constraint!( MODEL , case , generators )
+
+    #- Add ramping constraints
+    add_ramping_constraint!( MODEL , case , generators )
+
+    #- Add uptime constraints
+    add_uptime_constraint!( MODEL , case , generators )
+
+    #- Add downtime constraints
+    add_downtime_constraint!( MODEL , case , generators )
 
     #- Add maximum and minimum reserve constraints
-
     if case.Flag_Res == 1
         add_reserve_constraint!( MODEL , case , generators )
     end
 
-    #- Add load balance constraints
-    add_load_balance_constraint!( MODEL , case , generators , circuits , demands )
-
-    if case.Flag_Cont!=0
-        add_contingency_constraint!(  MODEL , case , generators)
+    #- Add contingency scenarios
+    if case.Flag_Cont != 0
+        add_contingency_constraint!(  MODEL , case , generators )
     end
 
-    add_unit_commitment( MODEL , case , generators )
-    add_ramping_constraint( MODEL , case , generators )
-    add_updowntime_constraint( MODEL , case , generators )
-    add_startupcost_shutdowncost_constraint( MODEL , case , generators)
+    #- Add grid constraints
+    add_grid_constraint!(  MODEL , case , circuits )
+
+    #- Add angle lag constraints
+    if case.Flag_Ang == 1
+        add_angle_constraint!( MODEL , case , circuits )
+    end
 
     #- Add objetive function
     add_obj_fun!( MODEL , case , generators )
 
     #- Writing LP
-    writeLP(MODEL, joinpath( path , "dispatch.lp") , genericnames = false)
+    writeLP( MODEL , joinpath( path , "dispatch.lp" ) , genericnames = false )
 
     #- Build and solve optmization problem
-    solve_dispatch( path , MODEL , case , circuits , generators , buses,  demands)
+    solve_dispatch( path , MODEL , case , circuits , generators , buses )
 end
 
 #------------------------------------------
@@ -313,6 +324,19 @@ end
 
 function main( path::String )
     
+    #---------------------------
+    #---  Defining variables ---
+    #---------------------------
+
+    local PATH_CASE::String
+    local CASE::Case
+    local GENCOS::Gencos
+    local DEMANDS::Demands
+    local CIRCUITS::Circuits
+    local BUSES::Buses    
+    local time_counter::Float64
+
+    #--- Reading case path
     PATH_CASE = get_paths( path );
 
     #--- Remove preveous log file ---

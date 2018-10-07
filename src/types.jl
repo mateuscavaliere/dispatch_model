@@ -47,10 +47,9 @@ mutable struct Gencos
     CVUPat2::Array{Float64}
     CVUPat3::Array{Float64}
 
-    StartUpCost_1::Array{Float64}
-    StartUpCost_2::Array{Float64}
-    StartUpCost_3::Array{Float64}
+    StartUpCost::Array{Float64}
     ShutdownCost::Array{Float64}
+    
     ReserveUpCost::Array{Float64}
     ReserveDownCost::Array{Float64}
 
