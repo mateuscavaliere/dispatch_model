@@ -263,6 +263,8 @@ function build_dispatch( path::String , case:: Case, circuits::Circuits , genera
     #---- Set number of contingency scenarios ----
     case.nContScen, case.ag, case.al = get_contingency_scenarios( case )
 
+    @show case.ag
+
     #--- Creating optmization problem
     MODEL = create_model( case, generators )
 

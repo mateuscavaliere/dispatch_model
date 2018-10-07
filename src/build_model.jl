@@ -22,7 +22,7 @@ function create_model( case::Case, generators::Gencos )
     local startcost::Array{JuMP.Variable,2}    # Represent generators startup cost
     local downcost::Array{JuMP.Variable,2}     # Represent generators shutdown cost
     local theta::Array{JuMP.Variable,3}        # Represent buses angles
-    local resup::JuMP.JuMPArray{JuMP.Variable,2}        # Represent generators reserve up 
+    local resup::Array{JuMP.Variable,2}        # Represent generators reserve up 
     local resdown::Array{JuMP.Variable,2}      # Represent generators reserve down
     
     local u::Int                               # Local variable to loop over generators
@@ -314,8 +314,8 @@ function add_generation_limits_constraint!( model::JuMP.Model , case::Case , gen
     local g::JuMP.JuMPArray{JuMP.Variable,3}                          # Variable to represent generators generations
     local v::JuMP.JuMPArray{JuMP.Variable,2}                          # Variable to represent generators commitment
     local p::JuMP.JuMPArray{JuMP.Variable,2}                          # Variable to represent generators maximum available power 
-    local resup::Array{JuMP.Variable,3}                      # Variable to represent generators reserve up 
-    local resdown::Array{JuMP.Variable,3}                    # Variable to represent generators reserve down
+    local resup::Array{JuMP.Variable,2}                      # Variable to represent generators reserve up 
+    local resdown::Array{JuMP.Variable,2}                    # Variable to represent generators reserve down
 
     local u::Int                                             # Local variable to loop over generators
     local t::Int                                             # Local variable to loop over stages
@@ -343,7 +343,9 @@ function add_generation_limits_constraint!( model::JuMP.Model , case::Case , gen
 
     if case.Flag_Res == 1
         for u = 1:case.nGen , c = 1:( case.nContScen + 1 ) , t = 1:case.nStages
-            genco_maxgen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ]                    <= resup[ u , t ] + p[ u , t ] )
+            # genco_maxgen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ]                    <= resup[ u , t ] + p[ u , t ] )
+            # genco_mingen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ] + resdown[ u , t ] >= generators.PotMin[ u ] * v[ u , t ] )
+            genco_maxgen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ] + resup[ u , t ]   <= p[ u , t ] )
             genco_mingen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ] + resdown[ u , t ] >= generators.PotMin[ u ] * v[ u , t ] )
         end
     else
@@ -440,10 +442,7 @@ function add_ramping_constraint!( model::JuMP.Model , case::Case , generators::G
     #--- Ramp-up and Start-up
 
     for u = 1:case.nGen , t = 1:case.nStages
-        genco_rampup_cstr[ u , t ] = @constraint( model , p[ u , t ] <= g[ u , 1 , t - 1 ]                              + 
-                                                                       ramp_up[ u ]  * v[ u , t - 1 ]                   + 
-                                                                       start_up[ u ] * ( v[ u , t ] - v[ u , t - 1 ] )  + 
-                                                                       pot_max[ u ]  * ( 1 - v[ u , t ] )                )
+        genco_rampup_cstr[ u , t ] = @constraint( model , p[ u , t ] <= g[ u , 1 , t - 1 ] + ( ramp_up[ u ] * v[ u , t - 1 ] ) + ( start_up[ u ] * ( v[ u , t ] - v[ u , t - 1 ] ) ) + ( pot_max[ u ]  * ( 1 - v[ u , t ] ) ) )
     end
     
     #--- Shutdown ramp rate
@@ -624,8 +623,8 @@ function add_reserve_constraint!( model::JuMP.Model , case::Case , generators::G
     local genco_maxresup_cstr::Array{JuMP.ConstraintRef,2}      # Constraint to represent maximum reserve up
     local genco_maxresdown_cstr::Array{JuMP.ConstraintRef,2}    # Constraint to represent maximum reserve down
 
-    local resup::Array{JuMP.Variable,3}                         # Variable to represent generators reserve up 
-    local resdown::Array{JuMP.Variable,3}                       # Variable to represent generators reserve down
+    local resup::Array{JuMP.Variable,2}                         # Variable to represent generators reserve up 
+    local resdown::Array{JuMP.Variable,2}                       # Variable to represent generators reserve down
 
     local maxResUp::Array{Float64,1}                            # Local variable to represent the maximum reserve up of each generator
     local maxResDown::Array{Float64,1}                          # Local variable to represent the maximum reserve down of each generator
@@ -644,7 +643,7 @@ function add_reserve_constraint!( model::JuMP.Model , case::Case , generators::G
     resdown = model[:resdown]
 
     nGen  = case.nGen
-    nStgs = case.nStgs
+    nStgs = case.nStages
 
     maxResUp   = generators.ReserveUp
     maxResDown = generators.ReserveDown
@@ -672,11 +671,11 @@ function add_contingency_constraint!( model::JuMP.Model , case::Case , generator
     #---  Defining variables ---
     #---------------------------
 
-    local genco_maxgen_cont_cstr::Array{JuMP.ConstraintRef,3}       # Constraint to represent maximum generation in each contingency scenario
-    local genco_mingen_cont_cstr::Array{JuMP.ConstraintRef,3}       # Constraint to represent minimum generation in each contingency scenario
+    local genco_maxgen_cont_cstr::JuMP.JuMPArray{JuMP.ConstraintRef,3}       # Constraint to represent maximum generation in each contingency scenario
+    local genco_mingen_cont_cstr::JuMP.JuMPArray{JuMP.ConstraintRef,3}       # Constraint to represent minimum generation in each contingency scenario
     
     local g::JuMP.JuMPArray{JuMP.Variable,3}                                 # Represent generators generations
-    local resup::JuMP.JuMPArray{JuMP.Variable,2}                             # Represent generators reserve up 
+    local resup::Array{JuMP.Variable,2}                             # Represent generators reserve up 
     local resdown::Array{JuMP.Variable,2}                           # Represent generators reserve down
     
     local ag::Array{Int,2}                                          # Local variable to represent contingency scenarios
@@ -713,13 +712,13 @@ function add_contingency_constraint!( model::JuMP.Model , case::Case , generator
 
     if case.Flag_Res == 1
         for u = 1:nGen , c = 2:( nScen + 1 ) , t = 1:nStgs
-            genco_maxgen_cont_cstr = @constraint( model,   g[ u , c , t ]                                    <= ( g[ u , 1 , t ] + resup[ u , t ]) * ag[ u , c ] )
-            genco_mingen_cont_cstr = @constraint( model, ( g[ u , 1 , t ] - resdown[ u , t ] ) * ag[ u , c ] <= g[ u , c , t ]                                   ) 
+            genco_maxgen_cont_cstr[ u , c , t ] = @constraint( model,   g[ u , c , t ]                                    <= ( g[ u , 1 , t ] + resup[ u , t ]) * ag[ u , c ] )
+            genco_mingen_cont_cstr[ u , c , t ] = @constraint( model, ( g[ u , 1 , t ] - resdown[ u , t ] ) * ag[ u , c ] <= g[ u , c , t ]                                   ) 
         end
     else
         for u = 1:nGen , c = 2:( nScen + 1 ) , t = 1:nStgs
-            genco_maxgen_cont_cstr = @constraint( model,   g[ u , c , t ]               <= g[ u , 1 , t ] * ag[ u , c ] )
-            genco_mingen_cont_cstr = @constraint( model,   g[ u , 1 , t ] * ag[ u , c ] <= g[ u , c , t ]               ) 
+            genco_maxgen_cont_cstr[ u , c , t ] = @constraint( model,   g[ u , c , t ]               <= g[ u , 1 , t ] * ag[ u , c ] )
+            genco_mingen_cont_cstr[ u , c , t ] = @constraint( model,   g[ u , 1 , t ] * ag[ u , c ] <= g[ u , c , t ]               ) 
         end
     end
 
@@ -735,10 +734,10 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
 
     local syst_cost::JuMP.GenericAffExpr{Float64,JuMP.Variable}         # Local variable to represent system total cost
 
-    local g::JuMP.JuMPArray{JuMP.Variable,3}                                     # Represent generators generations
+    local g::JuMP.JuMPArray{JuMP.Variable,3}                            # Represent generators generations
     local startcost::Array{JuMP.Variable,2}                             # Represent generators startup cost
     local downcost::Array{JuMP.Variable,2}                              # Represent generators shutdown cost
-    local resup::JuMP.JuMPArray{JuMP.Variable,2}                                 # Represent generators reserve up 
+    local resup::Array{JuMP.Variable,2}                                 # Represent generators reserve up 
     local resdown::Array{JuMP.Variable,2}                               # Represent generators reserve down
 
     local gen_cvu::Array{Float64,1}                                     # Represent the generators CVU
@@ -776,17 +775,15 @@ function add_obj_fun!( model::JuMP.Model , case::Case , generators::Gencos )
     #-----------------------------------
 
     if case.Flag_Res == 1
-        syst_cost = + sum( g[ u , 1 , t ] * gen_cvu[ u ] for u in 1:nGen , t  in 1:nStgs )
-                    + sum( resup[ u , t ] * cost_resup[u] for u in 1:nGen , t  in 1:nStgs )
-                    + sum( resdown[ u , t ] * cost_resdown[u] for u in 1:nGen , t  in 1:nStgs )
-                    + sum( startcost[ u , t ] + downcost[ u , t ] for u in 1:nGen , t  in 1:nStgs )
+        @objective( model , Min , + sum( g[ u , 1 , t ] * gen_cvu[ u ] for u in 1:nGen , t  in 1:nStgs )
+                                  + sum( resup[ u , t ] * cost_resup[u] for u in 1:nGen , t  in 1:nStgs )
+                                  + sum( resdown[ u , t ] * cost_resdown[u] for u in 1:nGen , t  in 1:nStgs )
+                                  + sum( startcost[ u , t ] + downcost[ u , t ] for u in 1:nGen , t  in 1:nStgs ) )
         
     else
-        syst_cost = + sum( g[ u , 1 , t ] * gen_cvu[ u ] for u in 1:nGen , t  in 1:nStgs )
-                    + sum( startcost[ u , t ] + downcost[ u , t ] for u in 1:nGen , t  in 1:nStgs )
+        @objective( model , Min , + sum( g[ u , 1 , t ] * gen_cvu[ u ] for u in 1:nGen , t  in 1:nStgs )
+                                  + sum( startcost[ u , t ] + downcost[ u , t ] for u in 1:nGen , t  in 1:nStgs ) )
     end
-
-    @objective( model , Min , syst_cost)
 
     return nothing
 end
