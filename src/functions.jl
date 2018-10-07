@@ -86,7 +86,7 @@ function get_contingency_scenarios( case::Case )
     #---------------------------
 
     local k::Int            # Local variable to loop over contingency scenarios
-    local nCen::Int         # Local variable to buffer the number of contingency scenarios
+    local nCen::Int = 0         # Local variable to buffer the number of contingency scenarios
     local nElements::Int    # Local variable to buffer number of elements that are in the contingency arrays
     local n_zeros::Int      # Auxiliar variable
     local n_ones::Int       # Auxiliar variable
@@ -115,7 +115,7 @@ function get_contingency_scenarios( case::Case )
 
     #--- Get the number of possible combinations
     for k in 1:case.Flag_nCont
-        nCen = binomial(nElements, k)
+        nCen += binomial(nElements, k)
     end
 
     #-------------------------------------------------------------
@@ -126,7 +126,6 @@ function get_contingency_scenarios( case::Case )
     al = ones( Int, nCen+1 , case.nCir )
     
     linha = 0
-
     for k in 0:case.Flag_nCont  
         
         #- Reset contingencies to match criteria G+T, T or G
