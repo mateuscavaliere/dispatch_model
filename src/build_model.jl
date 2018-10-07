@@ -29,6 +29,7 @@ function create_model( case::Case, generators::Gencos )
     local t::Int                               # Local variable to loop over stages
     local c::Int                               # Local variable to loop over scenarios
 
+    nInitCommit = size( generators.InitCommit )[2] # number of initial commits  given
     #-----------------------
     #---  Creating model ---
     #-----------------------
@@ -39,7 +40,7 @@ function create_model( case::Case, generators::Gencos )
 
     @variable( myModel, f[ 1:case.nCir , 1:(case.nContScen+1) , 1:case.nStages ]                           );
     @variable( myModel, g[ 1:case.nGen , 1:(case.nContScen+1) , 0:case.nStages ]                 >= 0      );
-    @variable( myModel, v[ 1:case.nGen , (-1 * size( generators.InitCommit )[2] ):case.nStages ] >= 0, Bin );
+    @variable( myModel, v[ 1:case.nGen , (-1 * nInitCommit ):case.nStages ] >= 0, Bin );
     @variable( myModel, r[ 1:case.nBus , 1:(case.nContScen+1) , 1:case.nStages ]                 >= 0      );
     @variable( myModel, p[ 1:case.nGen , 0:case.nStages ]                                        >=0       );
     @variable( myModel, startcost[ 1:case.nGen , 1:case.nStages ]                                >=0       );
@@ -67,6 +68,11 @@ function create_model( case::Case, generators::Gencos )
         #- Generation in t = 0
         for c in 1:( case.nContScen+1 )
             @constraint( myModel,  g[ u , c , 0 ] == generators.InitGen[ u ] )
+        end
+
+        #- Commitment 
+        for t in (-1 * nInitCommit ):-1
+            @constraint( myModel,  v[ u , t ]  == generators.InitCommit[ u , t + nInitCommit + 1 ])
         end
 
     end
@@ -442,7 +448,8 @@ function add_ramping_constraint!( model::JuMP.Model , case::Case , generators::G
     #--- Ramp-up and Start-up
 
     for u = 1:case.nGen , t = 1:case.nStages
-        genco_rampup_cstr[ u , t ] = @constraint( model , p[ u , t ] <= g[ u , 1 , t - 1 ] + ( ramp_up[ u ] * v[ u , t - 1 ] ) + ( start_up[ u ] * ( v[ u , t ] - v[ u , t - 1 ] ) ) + ( pot_max[ u ]  * ( 1 - v[ u , t ] ) ) )
+        genco_rampup_cstr[ u , t ] = @constraint( model , p[ u , t ] <= g[ u , 1 , t - 1 ] + ( ramp_up[ u ] * ( v[ u , t - 1 ] ) )  + ( start_up[ u ] * ( v[ u , t ] - v[ u , t - 1 ] ) ) + ( pot_max[ u ]  * ( 1 - v[ u , t ] ) ) )
+        @show genco_rampup_cstr[ u , t ]
     end
     
     #--- Shutdown ramp rate
@@ -454,9 +461,7 @@ function add_ramping_constraint!( model::JuMP.Model , case::Case , generators::G
     #--- Ramp down limits
 
     for u = 1:case.nGen , t = 1:case.nStages
-        genco_shutdownrate_cstr[ u , t ] = @constraint( model , g[ u , 1 , t - 1 ] - g[ u , 1 , t ] <= ramp_down[ u ] * v[ u , t ]                      +
-                                                                                                       shut_down[ u ] * ( v[ u , t - 1 ] - v[ u , t ] ) + 
-                                                                                                       pot_max[ u ] * ( 1 - v[ u , t - 1 ] )             )
+        genco_shutdownrate_cstr[ u , t ] = @constraint( model , g[ u , 1 , t - 1 ] - g[ u , 1 , t ] <= ramp_down[ u ] * v[ u , t ] + shut_down[ u ] * ( v[ u , t - 1 ] - v[ u , t ] ) + pot_max[ u ] * ( 1 - v[ u , t - 1 ] )  )
     end
 
     return nothing
@@ -862,9 +867,9 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         end
         
         write_outputs("results_commit.csv", path, v, generators.Name)
-
+        
         #- Reserve generation 
-
+        
         if case.Flag_Res == 1
             
             w_Log( " " , path )
@@ -886,7 +891,7 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         end
         
         w_Log( " " , path )
-
+        
         #- Circuits flow
         
         for l in 1:case.nCir
@@ -896,7 +901,7 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
         write_outputs("results_circ.csv", path, cir_flow[:,1,:], circuits.Name)
         
         #- Buses angles
-
+        
         if case.Flag_Ang == 1
             
             w_Log( " " , path )
@@ -908,15 +913,19 @@ function solve_dispatch( path::String , model::JuMP.Model , case::Case , circuit
             write_outputs("results_busang.csv", path, bus_ang[:,1,:], buses.Name)
         end
         
-        # write potdisp
+        #- write potdisp
+        w_Log( " " , path )
         # write_outputs("results_potdisp.csv", path, potdisp, generators.Name)
-    
-    w_Log("\n    Total cost = $(round(getobjectivevalue(model)/1000,2)) k\$" ,  path)
-
+        for u in 1:case.nGen
+            w_Log("     Potdisp of $(generators.Name[u]): $(round.(potdisp[u,:],2))" , path )
+        end
+        
+        w_Log("\n    Total cost = $(round(getobjectivevalue(model)/1000,2)) k\$" ,  path)
+        
     elseif status == :Infeasible
         w_Log("\n     No solution found!\n\n     This problem is Infeasible!" , path )
         # w_Log("\n     $(case.ag)" , path )
         # w_Log("\n     $(case.al)" , path )
     end
-
+    
 end
