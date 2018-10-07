@@ -343,10 +343,10 @@ function add_generation_limits_constraint!( model::JuMP.Model , case::Case , gen
 
     if case.Flag_Res == 1
         for u = 1:case.nGen , c = 1:( case.nContScen + 1 ) , t = 1:case.nStages
-            # genco_maxgen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ]                    <= resup[ u , t ] + p[ u , t ] )
-            # genco_mingen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ] + resdown[ u , t ] >= generators.PotMin[ u ] * v[ u , t ] )
-            genco_maxgen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ] + resup[ u , t ]   <= p[ u , t ] )
+            genco_maxgen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ]                    <= resup[ u , t ] + p[ u , t ] )
             genco_mingen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ] + resdown[ u , t ] >= generators.PotMin[ u ] * v[ u , t ] )
+            # genco_maxgen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ] + resup[ u , t ]   <= p[ u , t ] )
+            # genco_mingen_cstr[ u , c , t ] = @constraint( model , g[ u , c , t ] + resdown[ u , t ] >= generators.PotMin[ u ] * v[ u , t ] )
         end
     else
         for u = 1:case.nGen , c = 1:( case.nContScen + 1 ) , t = 1:case.nStages
